@@ -1,11 +1,12 @@
 @import "tailwindcss";
 
 :root {
-  --background: #05080a;
-  --foreground: #f3f6f2;
-  --accent: #29d17a;
-  --accent-dim: #1a9c58;
-  --gold: #f2b705;
+  --background: #050914;
+  --foreground: #f4f6fb;
+  --accent: #e3de1a;
+  --accent-dim: #b3ae10;
+  --blue: #2657d9;
+  --blue-dim: #1b3f9e;
   --glass-border: rgba(255, 255, 255, 0.09);
 }
 
@@ -14,16 +15,17 @@
   --color-foreground: var(--foreground);
   --color-accent: var(--accent);
   --color-accent-dim: var(--accent-dim);
-  --color-gold: var(--gold);
+  --color-blue: var(--blue);
+  --color-blue-dim: var(--blue-dim);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
 body {
   background:
-    radial-gradient(circle at 15% 0%, rgba(41, 209, 122, 0.16), transparent 45%),
-    radial-gradient(circle at 85% 15%, rgba(242, 183, 5, 0.08), transparent 40%),
-    linear-gradient(180deg, #05080a 0%, #070b09 100%);
+    radial-gradient(circle at 15% 0%, rgba(38, 87, 217, 0.28), transparent 45%),
+    radial-gradient(circle at 85% 15%, rgba(227, 222, 26, 0.1), transparent 40%),
+    linear-gradient(180deg, #050914 0%, #060a12 100%);
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
   min-height: 100%;

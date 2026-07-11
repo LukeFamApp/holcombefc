@@ -20,7 +20,10 @@ export default async function SignupPage({
         </p>
         <form action={signup} className="flex flex-col gap-4">
           <ErrorNote message={error} />
-          <Field label="Full name" name="fullName" required />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="First name" name="firstName" required />
+            <Field label="Last name" name="lastName" required />
+          </div>
           <Field label="Email" name="email" type="email" required />
           <Field label="Phone" name="phone" type="tel" />
           <Field

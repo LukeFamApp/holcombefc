@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { GlassCard, StatusPill } from "@/components/ui";
 import { CURRENT_SEASON } from "@/lib/config";
@@ -9,44 +8,34 @@ type RegistrationRow = {
   status: string;
   created_at: string;
   players: {
-    full_name: string;
+    first_name: string;
+    last_name: string;
     date_of_birth: string;
     emergency_contact_name: string;
     emergency_contact_phone: string;
     medical_notes: string | null;
     teams: { name: string; age_group: string } | null;
-    parents: { full_name: string; email: string; phone: string | null } | null;
+    parents: {
+      first_name: string;
+      last_name: string;
+      email: string;
+      phone: string | null;
+    } | null;
   } | null;
+  fee_plans: { name: string; annual_price_pence: number } | null;
   payments: { status: string }[] | null;
 };
 
 export default async function AdminPage() {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login?redirect=/admin");
-  }
-
-  const { data: parent } = await supabase
-    .from("parents")
-    .select("is_admin")
-    .eq("id", user.id)
-    .single();
-
-  if (!parent?.is_admin) {
-    redirect("/");
-  }
-
   const { data: registrations } = await supabase
     .from("registrations")
     .select(
       `id, season, status, created_at,
-       players ( full_name, date_of_birth, emergency_contact_name, emergency_contact_phone, medical_notes,
-                 teams ( name, age_group ), parents ( full_name, email, phone ) ),
+       players ( first_name, last_name, date_of_birth, emergency_contact_name, emergency_contact_phone, medical_notes,
+                 teams ( name, age_group ), parents ( first_name, last_name, email, phone ) ),
+       fee_plans ( name, annual_price_pence ),
        payments ( status )`,
     )
     .order("created_at", { ascending: false })
@@ -67,13 +56,13 @@ export default async function AdminPage() {
       </div>
 
       <GlassCard className="overflow-x-auto">
-        <table className="w-full min-w-[900px] text-sm">
+        <table className="w-full min-w-[1000px] text-sm">
           <thead>
             <tr className="text-left text-white/50 font-(family-name:--font-ui-mono) text-xs uppercase tracking-wide border-b border-white/10">
               <th className="px-4 py-3">Player</th>
               <th className="px-4 py-3">Team</th>
               <th className="px-4 py-3">Parent</th>
-              <th className="px-4 py-3">Season</th>
+              <th className="px-4 py-3">Fee plan</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Payment</th>
               <th className="px-4 py-3">Medical notes</th>
@@ -86,7 +75,7 @@ export default async function AdminPage() {
                 className="border-b border-white/5 last:border-0 hover:bg-white/[0.03]"
               >
                 <td className="px-4 py-3 text-white">
-                  {r.players?.full_name}
+                  {r.players?.first_name} {r.players?.last_name}
                   <div className="text-xs text-white/40">
                     DOB {r.players?.date_of_birth}
                   </div>
@@ -97,7 +86,7 @@ export default async function AdminPage() {
                     : "—"}
                 </td>
                 <td className="px-4 py-3 text-white/80">
-                  {r.players?.parents?.full_name}
+                  {r.players?.parents?.first_name} {r.players?.parents?.last_name}
                   <div className="text-xs text-white/40">
                     {r.players?.parents?.email}
                     {r.players?.parents?.phone
@@ -105,7 +94,13 @@ export default async function AdminPage() {
                       : ""}
                   </div>
                 </td>
-                <td className="px-4 py-3 text-white/80">{r.season}</td>
+                <td className="px-4 py-3 text-white/80">
+                  {r.fee_plans
+                    ? `${r.fee_plans.name} (£${(
+                        r.fee_plans.annual_price_pence / 100
+                      ).toFixed(2)}/yr)`
+                    : "—"}
+                </td>
                 <td className="px-4 py-3">
                   <StatusPill status={r.status} />
                 </td>

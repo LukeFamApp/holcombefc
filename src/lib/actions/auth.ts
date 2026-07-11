@@ -4,12 +4,13 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
 export async function signup(formData: FormData) {
-  const fullName = String(formData.get("fullName") ?? "").trim();
+  const firstName = String(formData.get("firstName") ?? "").trim();
+  const lastName = String(formData.get("lastName") ?? "").trim();
   const phone = String(formData.get("phone") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
 
-  if (!fullName || !email || password.length < 8) {
+  if (!firstName || !lastName || !email || password.length < 8) {
     redirect(
       `/signup?error=${encodeURIComponent(
         "Please fill in all fields (password must be at least 8 characters).",
@@ -22,7 +23,7 @@ export async function signup(formData: FormData) {
     email,
     password,
     options: {
-      data: { full_name: fullName, phone },
+      data: { first_name: firstName, last_name: lastName, phone },
       emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
     },
   });

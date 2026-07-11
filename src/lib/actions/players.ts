@@ -15,9 +15,11 @@ export async function addPlayer(formData: FormData) {
     redirect("/login?redirect=/register");
   }
 
-  const fullName = String(formData.get("fullName") ?? "").trim();
+  const firstName = String(formData.get("firstName") ?? "").trim();
+  const lastName = String(formData.get("lastName") ?? "").trim();
   const dateOfBirth = String(formData.get("dateOfBirth") ?? "");
-  const teamId = String(formData.get("teamId") ?? "") || null;
+  const teamId = String(formData.get("teamId") ?? "").trim();
+  const feePlanId = String(formData.get("feePlanId") ?? "").trim();
   const emergencyContactName = String(
     formData.get("emergencyContactName") ?? "",
   ).trim();
@@ -26,10 +28,36 @@ export async function addPlayer(formData: FormData) {
   ).trim();
   const medicalNotes = String(formData.get("medicalNotes") ?? "").trim() || null;
 
-  if (!fullName || !dateOfBirth || !emergencyContactName || !emergencyContactPhone) {
+  if (
+    !firstName ||
+    !lastName ||
+    !dateOfBirth ||
+    !teamId ||
+    !feePlanId ||
+    !emergencyContactName ||
+    !emergencyContactPhone
+  ) {
     redirect(
       `/register?error=${encodeURIComponent(
         "Please fill in all required fields.",
+      )}`,
+    );
+  }
+
+  // Confirm the chosen fee plan actually belongs to the chosen team, and
+  // grab its price so the payment record snapshots what was offered at the
+  // time of registration (not whatever the plan costs later).
+  const { data: feePlan, error: feePlanError } = await supabase
+    .from("fee_plans")
+    .select("id, annual_price_pence")
+    .eq("id", feePlanId)
+    .eq("team_id", teamId)
+    .single();
+
+  if (feePlanError || !feePlan) {
+    redirect(
+      `/register?error=${encodeURIComponent(
+        "That fee plan doesn't match the selected team — please try again.",
       )}`,
     );
   }
@@ -38,7 +66,8 @@ export async function addPlayer(formData: FormData) {
     .from("players")
     .insert({
       parent_id: user.id,
-      full_name: fullName,
+      first_name: firstName,
+      last_name: lastName,
       date_of_birth: dateOfBirth,
       team_id: teamId,
       emergency_contact_name: emergencyContactName,
@@ -58,7 +87,12 @@ export async function addPlayer(formData: FormData) {
 
   const { data: registration, error: regError } = await supabase
     .from("registrations")
-    .insert({ player_id: player.id, season: CURRENT_SEASON, status: "pending" })
+    .insert({
+      player_id: player.id,
+      fee_plan_id: feePlanId,
+      season: CURRENT_SEASON,
+      status: "pending",
+    })
     .select("id")
     .single();
 
@@ -70,9 +104,11 @@ export async function addPlayer(formData: FormData) {
     );
   }
 
-  await supabase
-    .from("payments")
-    .insert({ registration_id: registration.id, status: "pending" });
+  await supabase.from("payments").insert({
+    registration_id: registration.id,
+    amount_pence: feePlan.annual_price_pence,
+    status: "pending",
+  });
 
   revalidatePath("/register");
   redirect("/register?success=1");

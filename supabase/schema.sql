@@ -1,6 +1,12 @@
 -- Holcombe FC v1 schema
 -- Run this once in the Supabase SQL editor (Project -> SQL Editor -> New query).
 -- Safe to re-run: uses "if not exists" / "or replace" where possible.
+--
+-- NOTE: if you already ran an earlier version of this file (with a single
+-- `full_name` column and no fee_plans table), drop the old tables first:
+--   drop table if exists public.payments, public.registrations, public.fee_plans,
+--     public.players, public.teams, public.parents cascade;
+-- then run this file fresh. There's no production data yet, so this is safe.
 
 -- ---------------------------------------------------------------------------
 -- Tables
@@ -8,7 +14,8 @@
 
 create table if not exists public.parents (
   id         uuid primary key references auth.users(id) on delete cascade,
-  full_name  text not null default '',
+  first_name text not null default '',
+  last_name  text not null default '',
   email      text not null,
   phone      text,
   is_admin   boolean not null default false,
@@ -22,10 +29,19 @@ create table if not exists public.teams (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.fee_plans (
+  id                 uuid primary key default gen_random_uuid(),
+  team_id            uuid not null references public.teams(id) on delete cascade,
+  name               text not null,           -- e.g. "Full Membership", "Training Only"
+  annual_price_pence integer not null,
+  created_at         timestamptz not null default now()
+);
+
 create table if not exists public.players (
   id                      uuid primary key default gen_random_uuid(),
   parent_id               uuid not null references public.parents(id) on delete cascade,
-  full_name               text not null,
+  first_name              text not null,
+  last_name               text not null,
   date_of_birth           date not null,
   team_id                 uuid references public.teams(id) on delete set null,
   emergency_contact_name  text not null,
@@ -35,21 +51,22 @@ create table if not exists public.players (
 );
 
 create table if not exists public.registrations (
-  id          uuid primary key default gen_random_uuid(),
-  player_id   uuid not null references public.players(id) on delete cascade,
-  season      text not null,
-  status      text not null default 'pending' check (status in ('pending', 'active', 'withdrawn')),
-  created_at  timestamptz not null default now(),
+  id           uuid primary key default gen_random_uuid(),
+  player_id    uuid not null references public.players(id) on delete cascade,
+  fee_plan_id  uuid references public.fee_plans(id) on delete set null,
+  season       text not null,
+  status       text not null default 'pending' check (status in ('pending', 'active', 'withdrawn')),
+  created_at   timestamptz not null default now(),
   unique (player_id, season)
 );
 
 create table if not exists public.payments (
-  id                   uuid primary key default gen_random_uuid(),
-  registration_id      uuid not null references public.registrations(id) on delete cascade,
-  amount_pence         integer,
-  status               text not null default 'pending' check (status in ('pending', 'paid', 'failed', 'not_required')),
+  id                    uuid primary key default gen_random_uuid(),
+  registration_id       uuid not null references public.registrations(id) on delete cascade,
+  amount_pence          integer,
+  status                text not null default 'pending' check (status in ('pending', 'paid', 'failed', 'not_required')),
   gocardless_mandate_id text, -- placeholder for future GoCardless integration
-  created_at           timestamptz not null default now()
+  created_at            timestamptz not null default now()
 );
 
 -- ---------------------------------------------------------------------------
@@ -63,10 +80,11 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into public.parents (id, full_name, email, phone)
+  insert into public.parents (id, first_name, last_name, email, phone)
   values (
     new.id,
-    coalesce(new.raw_user_meta_data->>'full_name', ''),
+    coalesce(new.raw_user_meta_data->>'first_name', ''),
+    coalesce(new.raw_user_meta_data->>'last_name', ''),
     new.email,
     new.raw_user_meta_data->>'phone'
   );
@@ -99,6 +117,7 @@ $$;
 
 alter table public.parents       enable row level security;
 alter table public.teams         enable row level security;
+alter table public.fee_plans     enable row level security;
 alter table public.players       enable row level security;
 alter table public.registrations enable row level security;
 alter table public.payments      enable row level security;
@@ -120,6 +139,16 @@ create policy "teams_select_all" on public.teams
 
 drop policy if exists "teams_admin_manage" on public.teams;
 create policy "teams_admin_manage" on public.teams
+  for all using (public.is_admin()) with check (public.is_admin());
+
+-- fee_plans: readable by anyone (needed for the registration form), writable
+-- only by admins
+drop policy if exists "fee_plans_select_all" on public.fee_plans;
+create policy "fee_plans_select_all" on public.fee_plans
+  for select using (true);
+
+drop policy if exists "fee_plans_admin_manage" on public.fee_plans;
+create policy "fee_plans_admin_manage" on public.fee_plans
   for all using (public.is_admin()) with check (public.is_admin());
 
 -- players: a parent can manage their own children; admins can see everyone
@@ -161,7 +190,9 @@ create policy "registrations_admin_update" on public.registrations
   for update using (public.is_admin()) with check (public.is_admin());
 
 -- payments: a parent can view (not edit) payments tied to their own players;
--- only admins manage payment records
+-- only admins manage payment records. Parents can also insert the initial
+-- placeholder payment row for their own registration (status stays 'pending'
+-- until an admin or a future GoCardless webhook updates it).
 drop policy if exists "payments_select_own_or_admin" on public.payments;
 create policy "payments_select_own_or_admin" on public.payments
   for select using (
@@ -173,24 +204,38 @@ create policy "payments_select_own_or_admin" on public.payments
     )
   );
 
+drop policy if exists "payments_insert_own" on public.payments;
+create policy "payments_insert_own" on public.payments
+  for insert with check (
+    exists (
+      select 1 from public.registrations r
+      join public.players p on p.id = r.player_id
+      where r.id = payments.registration_id and p.parent_id = auth.uid()
+    )
+  );
+
 drop policy if exists "payments_admin_manage" on public.payments;
 create policy "payments_admin_manage" on public.payments
   for all using (public.is_admin()) with check (public.is_admin());
 
 -- ---------------------------------------------------------------------------
--- Seed teams (edit freely, or manage from the Supabase table editor)
+-- Seed teams + fee plans (edit freely, or manage from /admin/teams once
+-- you're an admin)
 -- ---------------------------------------------------------------------------
 
 insert into public.teams (name, age_group)
-select * from (values
-  ('Holcombe FC U7',  'U7'),
-  ('Holcombe FC U8',  'U8'),
-  ('Holcombe FC U9',  'U9'),
-  ('Holcombe FC U10', 'U10'),
-  ('Holcombe FC U11', 'U11'),
-  ('Holcombe FC U12', 'U12')
-) as seed(name, age_group)
+select 'Under 14s Blues', 'U14'
 where not exists (select 1 from public.teams);
+
+insert into public.fee_plans (team_id, name, annual_price_pence)
+select t.id, plan.name, plan.price
+from public.teams t
+cross join (values
+  ('Full Membership', 15000),
+  ('Training Only',   10000)
+) as plan(name, price)
+where t.name = 'Under 14s Blues'
+  and not exists (select 1 from public.fee_plans fp where fp.team_id = t.id);
 
 -- ---------------------------------------------------------------------------
 -- To make yourself admin after signing up, run (replace with your email):

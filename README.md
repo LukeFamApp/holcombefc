@@ -24,13 +24,17 @@ See `.env.example`. `SUPABASE_SERVICE_ROLE_KEY` is not currently used by the app
 
 ### Database
 
-Run [`supabase/schema.sql`](supabase/schema.sql) once in the Supabase SQL editor (Project → SQL Editor → New query). It creates the `parents`, `teams`, `players`, `registrations`, and `payments` tables, row-level security policies, a trigger that creates a `parents` row on signup, and seeds a starter set of teams.
+Run [`supabase/schema.sql`](supabase/schema.sql) once in the Supabase SQL editor (Project → SQL Editor → New query). It creates the `parents`, `teams`, `fee_plans`, `players`, `registrations`, and `payments` tables, row-level security policies, a trigger that creates a `parents` row on signup, and seeds the Under 14s Blues team with Full Membership (£150/yr) and Training Only (£100/yr) fee plans.
+
+If you already ran an earlier version of this file (before the `first_name`/`last_name` split and `fee_plans` table), drop the old tables first — see the note at the top of `schema.sql`.
 
 To make your own account an admin (after signing up once):
 
 ```sql
 update public.parents set is_admin = true where email = 'you@example.com';
 ```
+
+Once you're an admin, manage teams and fee plans at `/admin/teams` instead of the SQL editor.
 
 ## Deploying
 
@@ -41,6 +45,7 @@ update public.parents set is_admin = true where email = 'you@example.com';
 
 ## Not yet built
 
-- GoCardless payment collection (the `payments` table and `payment status` field are placeholders for this)
+- GoCardless payment collection (the `payments` table and `payment status` field are placeholders for this; the registration form only captures which fee plan a parent picked)
+- Monthly-over-6 payment schedule selection (will land alongside GoCardless)
 - Password reset flow
-- Editing/removing a registered player
+- Editing/removing a registered player or team

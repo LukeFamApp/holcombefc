@@ -1,30 +1,31 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { addPlayer } from "@/lib/actions/players";
-import {
-  GlassCard,
-  Field,
-  SelectField,
-  TextAreaField,
-  Button,
-  ErrorNote,
-  StatusPill,
-} from "@/components/ui";
+import { GlassCard, ErrorNote, StatusPill } from "@/components/ui";
+import PlayerRegistrationForm from "@/components/PlayerRegistrationForm";
 import { CURRENT_SEASON } from "@/lib/config";
 
 type RegistrationRow = {
   id: string;
   season: string;
   status: string;
+  fee_plans: { name: string; annual_price_pence: number } | null;
   payments: { status: string }[] | null;
 };
 
 type PlayerRow = {
   id: string;
-  full_name: string;
+  first_name: string;
+  last_name: string;
   date_of_birth: string;
   teams: { name: string; age_group: string } | null;
   registrations: RegistrationRow[] | null;
+};
+
+type TeamRow = {
+  id: string;
+  name: string;
+  age_group: string;
+  fee_plans: { id: string; name: string; annual_price_pence: number }[];
 };
 
 export default async function RegisterPage({
@@ -44,12 +45,16 @@ export default async function RegisterPage({
   }
 
   const [{ data: teams }, { data: players }] = await Promise.all([
-    supabase.from("teams").select("id, name, age_group").order("age_group"),
+    supabase
+      .from("teams")
+      .select("id, name, age_group, fee_plans ( id, name, annual_price_pence )")
+      .order("age_group")
+      .returns<TeamRow[]>(),
     supabase
       .from("players")
       .select(
-        `id, full_name, date_of_birth, teams ( name, age_group ),
-         registrations ( id, season, status, payments ( status ) )`,
+        `id, first_name, last_name, date_of_birth, teams ( name, age_group ),
+         registrations ( id, season, status, fee_plans ( name, annual_price_pence ), payments ( status ) )`,
       )
       .order("created_at", { ascending: false })
       .returns<PlayerRow[]>(),
@@ -76,11 +81,19 @@ export default async function RegisterPage({
               <GlassCard key={p.id} className="p-5">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <h3 className="font-semibold text-white">{p.full_name}</h3>
+                    <h3 className="font-semibold text-white">
+                      {p.first_name} {p.last_name}
+                    </h3>
                     <p className="text-xs text-white/50 mt-0.5">
                       DOB {p.date_of_birth}
                       {p.teams ? ` · ${p.teams.name}` : ""}
                     </p>
+                    {reg?.fee_plans && (
+                      <p className="text-xs text-white/50 mt-0.5">
+                        {reg.fee_plans.name} · £
+                        {(reg.fee_plans.annual_price_pence / 100).toFixed(2)}/yr
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -98,53 +111,18 @@ export default async function RegisterPage({
           Register a player
         </h2>
         <p className="text-white/50 text-sm mb-6">
-          Payment isn&apos;t collected yet — we&apos;ll be in touch once
-          online payments go live.
+          Full payment isn&apos;t collected yet — online direct debit is
+          coming soon. We&apos;ll be in touch about setting that up.
         </p>
-        <form action={addPlayer} className="flex flex-col gap-4">
-          {success && (
-            <p className="rounded-lg border border-accent/30 bg-accent/10 px-3.5 py-2.5 text-sm text-accent">
-              Player registered for {CURRENT_SEASON}.
-            </p>
-          )}
-          <ErrorNote message={error} />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Player full name" name="fullName" required />
-            <Field
-              label="Date of birth"
-              name="dateOfBirth"
-              type="date"
-              required
-            />
-          </div>
-          <SelectField
-            label="Team / age group"
-            name="teamId"
-            options={(teams ?? []).map((t) => ({
-              value: t.id,
-              label: `${t.name} (${t.age_group})`,
-            }))}
-          />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field
-              label="Emergency contact name"
-              name="emergencyContactName"
-              required
-            />
-            <Field
-              label="Emergency contact phone"
-              name="emergencyContactPhone"
-              type="tel"
-              required
-            />
-          </div>
-          <TextAreaField
-            label="Medical notes (allergies, conditions, etc.)"
-            name="medicalNotes"
-            placeholder="Leave blank if none"
-          />
-          <Button className="mt-2 self-start">Register player</Button>
-        </form>
+        {success && (
+          <p className="mb-4 rounded-lg border border-accent/30 bg-accent/10 px-3.5 py-2.5 text-sm text-accent">
+            Player registered for {CURRENT_SEASON}.
+          </p>
+        )}
+        <ErrorNote message={error} />
+        <div className={error ? "mt-4" : ""}>
+          <PlayerRegistrationForm teams={teams ?? []} />
+        </div>
       </GlassCard>
     </div>
   );

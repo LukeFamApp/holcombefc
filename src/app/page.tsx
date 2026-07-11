@@ -1,14 +1,23 @@
 import Link from "next/link";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import { GlassCard } from "@/components/ui";
 import { CURRENT_SEASON } from "@/lib/config";
+
+type Team = {
+  id: string;
+  name: string;
+  age_group: string;
+  fee_plans: { id: string; name: string; annual_price_pence: number }[];
+};
 
 export default async function HomePage() {
   const supabase = await createClient();
   const { data: teams } = await supabase
     .from("teams")
-    .select("id, name, age_group")
-    .order("age_group");
+    .select("id, name, age_group, fee_plans ( id, name, annual_price_pence )")
+    .order("age_group")
+    .returns<Team[]>();
 
   return (
     <div className="flex flex-1 flex-col">
@@ -18,13 +27,32 @@ export default async function HomePage() {
           aria-hidden
           className="pointer-events-none absolute inset-0 -z-10 flex justify-center"
         >
-          <div className="h-[480px] w-[480px] rounded-full bg-accent/10 blur-[120px]" />
+          <div className="h-[520px] w-[520px] rounded-full bg-blue/20 blur-[130px]" />
         </div>
 
+        {/* Pitch markings backdrop */}
+        <svg
+          aria-hidden
+          viewBox="0 0 1200 500"
+          className="pointer-events-none absolute inset-0 -z-10 h-full w-full opacity-[0.14]"
+          preserveAspectRatio="xMidYMid slice"
+        >
+          <line x1="600" y1="0" x2="600" y2="500" stroke="var(--color-accent)" strokeWidth="2" />
+          <circle cx="600" cy="250" r="110" fill="none" stroke="var(--color-accent)" strokeWidth="2" />
+          <circle cx="600" cy="250" r="4" fill="var(--color-accent)" />
+          <path d="M 0 130 a 120 120 0 0 1 0 240" fill="none" stroke="var(--color-accent)" strokeWidth="2" />
+          <path d="M 1200 130 a 120 120 0 0 0 0 240" fill="none" stroke="var(--color-accent)" strokeWidth="2" />
+        </svg>
+
         <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
-          <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-2xl border border-white/15 bg-white/[0.04] font-(family-name:--font-display) text-2xl tracking-widest text-accent shadow-[0_0_40px_rgba(41,209,122,0.15)]">
-            HFC
-          </div>
+          <Image
+            src="/badge.png"
+            alt="Holcombe FC badge"
+            width={128}
+            height={128}
+            priority
+            className="mb-6 h-28 w-28 drop-shadow-[0_0_40px_rgba(38,87,217,0.45)]"
+          />
           <p className="mb-3 font-(family-name:--font-ui-mono) text-xs uppercase tracking-[0.3em] text-accent">
             Grassroots Football Club
           </p>
@@ -39,7 +67,7 @@ export default async function HomePage() {
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link
               href="/signup"
-              className="rounded-lg bg-accent px-6 py-3 font-semibold text-black shadow-[0_0_30px_rgba(41,209,122,0.3)] transition-colors hover:bg-accent-dim hover:text-white"
+              className="rounded-lg bg-accent px-6 py-3 font-semibold text-black shadow-[0_0_30px_rgba(227,222,26,0.3)] transition-colors hover:bg-accent-dim"
             >
               Register your player
             </Link>
@@ -84,33 +112,58 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Teams */}
+      {/* Teams + fees */}
       {teams && teams.length > 0 && (
         <section className="px-6 pb-24">
           <div className="mx-auto max-w-5xl">
-            <h2 className="font-(family-name:--font-display) text-3xl text-white mb-6 text-center">
+            <h2 className="font-(family-name:--font-display) text-3xl text-white mb-2 text-center">
               Our Teams
             </h2>
-            <div className="flex flex-wrap justify-center gap-3">
+            <p className="text-center text-white/50 text-sm mb-8">
+              Membership fees for the {CURRENT_SEASON} season
+            </p>
+            <div className="flex flex-wrap justify-center gap-4">
               {teams.map((t) => (
-                <span
-                  key={t.id}
-                  className="glass rounded-full px-4 py-2 text-sm font-(family-name:--font-ui-mono) text-white/75"
-                >
-                  {t.age_group}
-                </span>
+                <GlassCard key={t.id} className="min-w-[240px] p-5">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-blue" />
+                    <h3 className="font-semibold text-white">{t.name}</h3>
+                  </div>
+                  <p className="mt-0.5 text-xs text-white/40">{t.age_group}</p>
+                  <ul className="mt-3 flex flex-col gap-1.5">
+                    {t.fee_plans.map((p) => (
+                      <li
+                        key={p.id}
+                        className="flex items-center justify-between text-sm text-white/70"
+                      >
+                        <span>{p.name}</span>
+                        <span className="font-(family-name:--font-ui-mono) text-accent">
+                          £{(p.annual_price_pence / 100).toFixed(0)}/yr
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </GlassCard>
               ))}
             </div>
+            <p className="mt-6 text-center text-xs text-white/40">
+              Pay annually, or by monthly direct debit over 6 months once
+              online payments go live.
+            </p>
           </div>
         </section>
       )}
 
       {/* Footer */}
       <footer className="mt-auto border-t border-white/10 px-6 py-10">
-        <div className="mx-auto flex max-w-5xl flex-col items-center gap-2 text-center text-sm text-white/40">
-          <p className="font-(family-name:--font-display) text-lg tracking-wide text-white/70">
-            HOLCOMBE <span className="text-accent">FC</span>
-          </p>
+        <div className="mx-auto flex max-w-5xl flex-col items-center gap-3 text-center text-sm text-white/40">
+          <Image
+            src="/badge.png"
+            alt="Holcombe FC badge"
+            width={40}
+            height={40}
+            className="h-10 w-10 opacity-80"
+          />
           <p>
             &copy; {new Date().getFullYear()} Holcombe FC. All rights
             reserved.

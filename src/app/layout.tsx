@@ -30,6 +30,10 @@ export const metadata: Metadata = {
   title: "Holcombe FC | Player Registration",
   description:
     "Register your child with Holcombe FC and manage your club fees online.",
+  icons: {
+    icon: "/badge.png",
+    apple: "/badge.png",
+  },
 };
 
 export default function RootLayout({

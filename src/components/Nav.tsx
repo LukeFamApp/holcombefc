@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import { logout } from "@/lib/actions/auth";
 
@@ -21,11 +22,18 @@ export default async function Nav() {
   return (
     <header className="sticky top-0 z-50 glass border-x-0 border-t-0">
       <nav className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-        <Link
-          href="/"
-          className="font-(family-name:--font-display) text-2xl tracking-wide text-white"
-        >
-          HOLCOMBE <span className="text-accent">FC</span>
+        <Link href="/" className="flex items-center gap-2.5">
+          <Image
+            src="/badge.png"
+            alt="Holcombe FC badge"
+            width={36}
+            height={36}
+            className="h-9 w-9"
+            priority
+          />
+          <span className="font-(family-name:--font-display) text-2xl tracking-wide text-white">
+            HOLCOMBE <span className="text-accent">FC</span>
+          </span>
         </Link>
         <div className="flex items-center gap-2 font-(family-name:--font-ui-mono) text-sm">
           {user ? (

@@ -149,7 +149,7 @@ export function ErrorNote({ message }: { message?: string }) {
 
 export function StatusPill({ status }: { status: string }) {
   const styles: Record<string, string> = {
-    pending: "bg-gold/15 text-gold border-gold/30",
+    pending: "bg-blue/15 text-blue-200 border-blue/40",
     active: "bg-accent/15 text-accent border-accent/30",
     withdrawn: "bg-red-500/15 text-red-300 border-red-500/30",
     paid: "bg-accent/15 text-accent border-accent/30",
