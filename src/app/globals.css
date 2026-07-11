@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+:root {
+  --background: #05080a;
+  --foreground: #f3f6f2;
+  --accent: #29d17a;
+  --accent-dim: #1a9c58;
+  --gold: #f2b705;
+  --glass-border: rgba(255, 255, 255, 0.09);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-accent: var(--accent);
+  --color-accent-dim: var(--accent-dim);
+  --color-gold: var(--gold);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background:
+    radial-gradient(circle at 15% 0%, rgba(41, 209, 122, 0.16), transparent 45%),
+    radial-gradient(circle at 85% 15%, rgba(242, 183, 5, 0.08), transparent 40%),
+    linear-gradient(180deg, #05080a 0%, #070b09 100%);
+  color: var(--foreground);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  min-height: 100%;
+}
+
+@layer utilities {
+  .glass {
+    background: rgba(255, 255, 255, 0.045);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  }
+
+  .glass-strong {
+    background: rgba(255, 255, 255, 0.07);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.45);
+  }
+
+  .pitch-lines {
+    background-image: repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.035) 0px,
+      rgba(255, 255, 255, 0.035) 1px,
+      transparent 1px,
+      transparent 120px
+    );
+  }
+}
