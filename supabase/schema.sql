@@ -2,11 +2,13 @@
 -- Run this once in the Supabase SQL editor (Project -> SQL Editor -> New query).
 -- Safe to re-run: uses "if not exists" / "or replace" where possible.
 --
--- NOTE: if you already ran an earlier version of this file (with a single
--- `full_name` column and no fee_plans table), drop the old tables first:
+-- NOTE: if you already ran an earlier version of this file (before the
+-- address/medical/consent fields were added to players), drop the old
+-- tables first:
 --   drop table if exists public.payments, public.registrations, public.fee_plans,
 --     public.players, public.teams, public.parents cascade;
 -- then run this file fresh. There's no production data yet, so this is safe.
+-- (Re-run the "make yourself admin" update at the bottom afterwards.)
 
 -- ---------------------------------------------------------------------------
 -- Tables
@@ -43,10 +45,20 @@ create table if not exists public.players (
   first_name              text not null,
   last_name               text not null,
   date_of_birth           date not null,
+  address_line1           text not null,
+  address_line2           text,
+  address_town            text not null,
+  address_postcode        text not null,
   team_id                 uuid references public.teams(id) on delete set null,
   emergency_contact_name  text not null,
   emergency_contact_phone text not null,
-  medical_notes           text,
+  -- medical questionnaire: null means "none declared"
+  medical_conditions      text,
+  allergies               text,
+  medications             text,
+  -- consents
+  photo_consent           boolean not null default false,
+  coc_accepted_at         timestamptz not null default now(),
   created_at              timestamptz not null default now()
 );
 

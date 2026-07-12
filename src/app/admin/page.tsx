@@ -13,7 +13,10 @@ type RegistrationRow = {
     date_of_birth: string;
     emergency_contact_name: string;
     emergency_contact_phone: string;
-    medical_notes: string | null;
+    medical_conditions: string | null;
+    allergies: string | null;
+    medications: string | null;
+    photo_consent: boolean;
     teams: { name: string; age_group: string } | null;
     parents: {
       first_name: string;
@@ -33,7 +36,8 @@ export default async function AdminPage() {
     .from("registrations")
     .select(
       `id, season, status, created_at,
-       players ( first_name, last_name, date_of_birth, emergency_contact_name, emergency_contact_phone, medical_notes,
+       players ( first_name, last_name, date_of_birth, emergency_contact_name, emergency_contact_phone,
+                 medical_conditions, allergies, medications, photo_consent,
                  teams ( name, age_group ), parents ( first_name, last_name, email, phone ) ),
        fee_plans ( name, annual_price_pence ),
        payments ( status )`,
@@ -65,7 +69,8 @@ export default async function AdminPage() {
               <th className="px-4 py-3">Fee plan</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Payment</th>
-              <th className="px-4 py-3">Medical notes</th>
+              <th className="px-4 py-3">Photos</th>
+              <th className="px-4 py-3">Medical</th>
             </tr>
           </thead>
           <tbody>
@@ -107,14 +112,34 @@ export default async function AdminPage() {
                 <td className="px-4 py-3">
                   <StatusPill status={r.payments?.[0]?.status ?? "not_required"} />
                 </td>
-                <td className="px-4 py-3 text-white/60 max-w-[220px] truncate">
-                  {r.players?.medical_notes || "—"}
+                <td className="px-4 py-3">
+                  <span
+                    className={
+                      r.players?.photo_consent
+                        ? "text-accent"
+                        : "text-red-300"
+                    }
+                  >
+                    {r.players?.photo_consent ? "✓ Yes" : "✗ No"}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-white/60 max-w-[260px]">
+                  {[
+                    r.players?.medical_conditions &&
+                      `Conditions: ${r.players.medical_conditions}`,
+                    r.players?.allergies &&
+                      `Allergies: ${r.players.allergies}`,
+                    r.players?.medications &&
+                      `Medication: ${r.players.medications}`,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ") || "None declared"}
                 </td>
               </tr>
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-white/40">
+                <td colSpan={8} className="px-4 py-10 text-center text-white/40">
                   No registrations yet.
                 </td>
               </tr>

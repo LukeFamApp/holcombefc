@@ -10,8 +10,8 @@ export default async function SignupPage({
   const { error } = await searchParams;
 
   return (
-    <div className="flex flex-1 items-center justify-center px-6 py-16">
-      <GlassCard strong className="w-full max-w-sm p-8">
+    <div className="flex flex-1 items-center justify-center px-4 py-10 sm:px-6 sm:py-16">
+      <GlassCard strong className="w-full max-w-sm p-6 sm:p-8">
         <h1 className="font-(family-name:--font-display) text-3xl text-white mb-1">
           Create your account
         </h1>
@@ -32,6 +32,13 @@ export default async function SignupPage({
             type="password"
             required
             placeholder="At least 8 characters"
+          />
+          <Field
+            label="Confirm password"
+            name="confirmPassword"
+            type="password"
+            required
+            placeholder="Retype your password"
           />
           <Button className="mt-2 w-full">Sign up</Button>
         </form>

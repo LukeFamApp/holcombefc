@@ -5,6 +5,14 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { CURRENT_SEASON } from "@/lib/config";
 
+function text(formData: FormData, key: string): string {
+  return String(formData.get(key) ?? "").trim();
+}
+
+function optional(formData: FormData, key: string): string | null {
+  return text(formData, key) || null;
+}
+
 export async function addPlayer(formData: FormData) {
   const supabase = await createClient();
   const {
@@ -15,23 +23,30 @@ export async function addPlayer(formData: FormData) {
     redirect("/login?redirect=/register");
   }
 
-  const firstName = String(formData.get("firstName") ?? "").trim();
-  const lastName = String(formData.get("lastName") ?? "").trim();
-  const dateOfBirth = String(formData.get("dateOfBirth") ?? "");
-  const teamId = String(formData.get("teamId") ?? "").trim();
-  const feePlanId = String(formData.get("feePlanId") ?? "").trim();
-  const emergencyContactName = String(
-    formData.get("emergencyContactName") ?? "",
-  ).trim();
-  const emergencyContactPhone = String(
-    formData.get("emergencyContactPhone") ?? "",
-  ).trim();
-  const medicalNotes = String(formData.get("medicalNotes") ?? "").trim() || null;
+  const firstName = text(formData, "firstName");
+  const lastName = text(formData, "lastName");
+  const dateOfBirth = text(formData, "dateOfBirth");
+  const addressLine1 = text(formData, "addressLine1");
+  const addressLine2 = optional(formData, "addressLine2");
+  const addressTown = text(formData, "addressTown");
+  const addressPostcode = text(formData, "addressPostcode");
+  const teamId = text(formData, "teamId");
+  const feePlanId = text(formData, "feePlanId");
+  const emergencyContactName = text(formData, "emergencyContactName");
+  const emergencyContactPhone = text(formData, "emergencyContactPhone");
+  const medicalConditions = optional(formData, "medicalConditions");
+  const allergies = optional(formData, "allergies");
+  const medications = optional(formData, "medications");
+  const photoConsent = text(formData, "photoConsent") === "yes";
+  const cocAccepted = formData.get("cocAccepted") === "on";
 
   if (
     !firstName ||
     !lastName ||
     !dateOfBirth ||
+    !addressLine1 ||
+    !addressTown ||
+    !addressPostcode ||
     !teamId ||
     !feePlanId ||
     !emergencyContactName ||
@@ -40,6 +55,14 @@ export async function addPlayer(formData: FormData) {
     redirect(
       `/register?error=${encodeURIComponent(
         "Please fill in all required fields.",
+      )}`,
+    );
+  }
+
+  if (!cocAccepted) {
+    redirect(
+      `/register?error=${encodeURIComponent(
+        "You need to accept the club's codes of conduct to register.",
       )}`,
     );
   }
@@ -69,10 +92,18 @@ export async function addPlayer(formData: FormData) {
       first_name: firstName,
       last_name: lastName,
       date_of_birth: dateOfBirth,
+      address_line1: addressLine1,
+      address_line2: addressLine2,
+      address_town: addressTown,
+      address_postcode: addressPostcode,
       team_id: teamId,
       emergency_contact_name: emergencyContactName,
       emergency_contact_phone: emergencyContactPhone,
-      medical_notes: medicalNotes,
+      medical_conditions: medicalConditions,
+      allergies,
+      medications,
+      photo_consent: photoConsent,
+      coc_accepted_at: new Date().toISOString(),
     })
     .select("id")
     .single();
@@ -110,6 +141,6 @@ export async function addPlayer(formData: FormData) {
     status: "pending",
   });
 
-  revalidatePath("/register");
-  redirect("/register?success=1");
+  revalidatePath("/dashboard");
+  redirect("/dashboard?registered=1");
 }
