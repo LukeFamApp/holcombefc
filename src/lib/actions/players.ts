@@ -67,6 +67,21 @@ export async function addPlayer(formData: FormData) {
     );
   }
 
+  // Same child already registered? Treat a repeat submission as success —
+  // this absorbs double-taps and back-button resubmits gracefully.
+  const { data: existing } = await supabase
+    .from("players")
+    .select("id")
+    .eq("parent_id", user.id)
+    .ilike("first_name", firstName)
+    .ilike("last_name", lastName)
+    .eq("date_of_birth", dateOfBirth)
+    .maybeSingle();
+
+  if (existing) {
+    redirect("/dashboard?registered=1");
+  }
+
   // Confirm the chosen fee plan actually belongs to the chosen team, and
   // grab its price so the payment record snapshots what was offered at the
   // time of registration (not whatever the plan costs later).
@@ -109,6 +124,11 @@ export async function addPlayer(formData: FormData) {
     .single();
 
   if (playerError || !player) {
+    // 23505 = unique violation from the players_unique_child_per_parent
+    // index — a concurrent duplicate submission beat us to it.
+    if (playerError?.code === "23505") {
+      redirect("/dashboard?registered=1");
+    }
     redirect(
       `/register?error=${encodeURIComponent(
         playerError?.message ?? "Could not save player.",

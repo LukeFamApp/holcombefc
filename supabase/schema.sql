@@ -62,6 +62,11 @@ create table if not exists public.players (
   created_at              timestamptz not null default now()
 );
 
+-- The same child can only exist once per parent (guards against
+-- double-submitted registration forms).
+create unique index if not exists players_unique_child_per_parent
+  on public.players (parent_id, lower(first_name), lower(last_name), date_of_birth);
+
 create table if not exists public.registrations (
   id           uuid primary key default gen_random_uuid(),
   player_id    uuid not null references public.players(id) on delete cascade,

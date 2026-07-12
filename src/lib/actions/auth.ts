@@ -41,6 +41,16 @@ export async function signup(formData: FormData) {
     redirect(`/signup?error=${encodeURIComponent(error.message)}`);
   }
 
+  // Supabase masks duplicate signups (no error, no session, empty
+  // identities) so email addresses can't be probed — send them to log in.
+  if (data.user && data.user.identities?.length === 0) {
+    redirect(
+      `/login?error=${encodeURIComponent(
+        "You already have an account with that email — log in below.",
+      )}`,
+    );
+  }
+
   // With email confirmation disabled, Supabase returns a session straight
   // away and the parent can go directly to their dashboard.
   if (data.session) {

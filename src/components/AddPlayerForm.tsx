@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { addPlayer } from "@/lib/actions/players";
 
@@ -70,6 +71,39 @@ function YesNo({
 }
 
 const STEPS = ["Player details", "Medical", "Consent"] as const;
+
+function FinalStepButtons({
+  onBack,
+  onValidate,
+}: {
+  onBack: () => void;
+  onValidate: (e: React.MouseEvent<HTMLButtonElement>) => void;
+}) {
+  // useFormStatus reads the enclosing <form>'s pending state, so while the
+  // server action runs both buttons lock and the label shows progress —
+  // no more accidental double-submits.
+  const { pending } = useFormStatus();
+  return (
+    <div className="flex gap-3">
+      <button
+        type="button"
+        onClick={onBack}
+        disabled={pending}
+        className="rounded-lg border border-white/15 px-5 py-3 text-sm font-semibold text-white hover:bg-white/10 transition-colors disabled:opacity-40"
+      >
+        Back
+      </button>
+      <button
+        type="submit"
+        onClick={onValidate}
+        disabled={pending}
+        className="flex-1 rounded-lg bg-accent px-5 py-3 text-sm font-semibold text-black hover:bg-accent-dim transition-colors disabled:opacity-60"
+      >
+        {pending ? "Registering… one moment" : "Complete registration"}
+      </button>
+    </div>
+  );
+}
 
 export default function AddPlayerForm({ teams }: { teams: Team[] }) {
   const [step, setStep] = useState(0);
@@ -441,26 +475,14 @@ export default function AddPlayerForm({ teams }: { teams: Team[] }) {
             </label>
           </div>
 
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={back}
-              className="rounded-lg border border-white/15 px-5 py-3 text-sm font-semibold text-white hover:bg-white/10 transition-colors"
-            >
-              Back
-            </button>
-            <button
-              type="submit"
-              onClick={(e) => {
-                const err = validateStep(2);
-                setStepError(err);
-                if (err) e.preventDefault();
-              }}
-              className="flex-1 rounded-lg bg-accent px-5 py-3 text-sm font-semibold text-black hover:bg-accent-dim transition-colors"
-            >
-              Complete registration
-            </button>
-          </div>
+          <FinalStepButtons
+            onBack={back}
+            onValidate={(e) => {
+              const err = validateStep(2);
+              setStepError(err);
+              if (err) e.preventDefault();
+            }}
+          />
         </form>
       )}
 
