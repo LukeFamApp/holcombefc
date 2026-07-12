@@ -9,7 +9,12 @@ type TeamRow = {
   id: string;
   name: string;
   age_group: string;
-  fee_plans: { id: string; name: string; annual_price_pence: number }[];
+  fee_plans: {
+    id: string;
+    name: string;
+    annual_price_pence: number;
+    instalment_count: number | null;
+  }[];
 };
 
 export default async function RegisterPage({
@@ -30,7 +35,9 @@ export default async function RegisterPage({
 
   const { data: teams } = await supabase
     .from("teams")
-    .select("id, name, age_group, fee_plans ( id, name, annual_price_pence )")
+    .select(
+      "id, name, age_group, fee_plans ( id, name, annual_price_pence, instalment_count )",
+    )
     .order("age_group")
     .returns<TeamRow[]>();
 

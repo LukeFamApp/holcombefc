@@ -147,14 +147,27 @@ export function ErrorNote({ message }: { message?: string }) {
   );
 }
 
-export function StatusPill({ status }: { status: string }) {
+export function StatusPill({
+  status,
+  kind = "registration",
+}: {
+  status: string;
+  kind?: "registration" | "payment";
+}) {
   const styles: Record<string, string> = {
     pending: "bg-blue/15 text-blue-200 border-blue/40",
     active: "bg-accent/15 text-accent border-accent/30",
     withdrawn: "bg-red-500/15 text-red-300 border-red-500/30",
+    processing: "bg-blue/15 text-blue-200 border-blue/40",
     paid: "bg-accent/15 text-accent border-accent/30",
     failed: "bg-red-500/15 text-red-300 border-red-500/30",
+    cancelled: "bg-red-500/15 text-red-300 border-red-500/30",
     not_required: "bg-white/10 text-white/50 border-white/15",
+  };
+  const labels: Record<string, string> = {
+    active: "Registered",
+    processing: "Direct Debit active",
+    ...(kind === "payment" ? { pending: "Payment due" } : {}),
   };
   return (
     <span
@@ -162,7 +175,7 @@ export function StatusPill({ status }: { status: string }) {
         styles[status] ?? "bg-white/10 text-white/60 border-white/15"
       }`}
     >
-      {status.replace("_", " ")}
+      {labels[status] ?? status.replace("_", " ")}
     </span>
   );
 }

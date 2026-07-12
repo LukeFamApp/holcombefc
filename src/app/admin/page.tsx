@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { GlassCard, StatusPill } from "@/components/ui";
 import { CURRENT_SEASON } from "@/lib/config";
+import { movePlayerToTeam } from "@/lib/actions/teams";
 
 type RegistrationRow = {
   id: string;
@@ -8,6 +9,7 @@ type RegistrationRow = {
   status: string;
   created_at: string;
   players: {
+    id: string;
     first_name: string;
     last_name: string;
     date_of_birth: string;
@@ -17,7 +19,7 @@ type RegistrationRow = {
     allergies: string | null;
     medications: string | null;
     photo_consent: boolean;
-    teams: { name: string; age_group: string } | null;
+    teams: { id: string; name: string; age_group: string } | null;
     parents: {
       first_name: string;
       last_name: string;
@@ -26,26 +28,30 @@ type RegistrationRow = {
     } | null;
   } | null;
   fee_plans: { name: string; annual_price_pence: number } | null;
-  payments: { status: string }[] | null;
+  payments: { status: string; method: string | null }[] | null;
 };
 
 export default async function AdminPage() {
   const supabase = await createClient();
 
-  const { data: registrations } = await supabase
-    .from("registrations")
-    .select(
-      `id, season, status, created_at,
-       players ( first_name, last_name, date_of_birth, emergency_contact_name, emergency_contact_phone,
-                 medical_conditions, allergies, medications, photo_consent,
-                 teams ( name, age_group ), parents ( first_name, last_name, email, phone ) ),
-       fee_plans ( name, annual_price_pence ),
-       payments ( status )`,
-    )
-    .order("created_at", { ascending: false })
-    .returns<RegistrationRow[]>();
+  const [{ data: registrations }, { data: allTeams }] = await Promise.all([
+    supabase
+      .from("registrations")
+      .select(
+        `id, season, status, created_at,
+         players ( id, first_name, last_name, date_of_birth, emergency_contact_name, emergency_contact_phone,
+                   medical_conditions, allergies, medications, photo_consent,
+                   teams ( id, name, age_group ), parents ( first_name, last_name, email, phone ) ),
+         fee_plans ( name, annual_price_pence ),
+         payments ( status, method )`,
+      )
+      .order("created_at", { ascending: false })
+      .returns<RegistrationRow[]>(),
+    supabase.from("teams").select("id, name, age_group").order("age_group"),
+  ]);
 
   const rows = registrations ?? [];
+  const teams = allTeams ?? [];
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-12 flex flex-col gap-6">
@@ -86,9 +92,34 @@ export default async function AdminPage() {
                   </div>
                 </td>
                 <td className="px-4 py-3 text-white/80">
-                  {r.players?.teams
-                    ? `${r.players.teams.name} (${r.players.teams.age_group})`
-                    : "—"}
+                  {r.players && (
+                    <form
+                      action={movePlayerToTeam}
+                      className="flex items-center gap-2"
+                    >
+                      <input type="hidden" name="playerId" value={r.players.id} />
+                      <select
+                        name="teamId"
+                        defaultValue={r.players.teams?.id ?? ""}
+                        className="rounded-lg bg-black/30 border border-white/10 px-2 py-1.5 text-xs text-white outline-none focus:border-accent"
+                      >
+                        <option value="" disabled>
+                          No team
+                        </option>
+                        {teams.map((t) => (
+                          <option key={t.id} value={t.id} className="bg-[#0a0f1e]">
+                            {t.name} ({t.age_group})
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="submit"
+                        className="rounded-lg border border-white/15 px-2 py-1.5 text-xs text-white/70 hover:bg-white/10 hover:text-white transition-colors"
+                      >
+                        Move
+                      </button>
+                    </form>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-white/80">
                   {r.players?.parents?.first_name} {r.players?.parents?.last_name}
@@ -110,7 +141,17 @@ export default async function AdminPage() {
                   <StatusPill status={r.status} />
                 </td>
                 <td className="px-4 py-3">
-                  <StatusPill status={r.payments?.[0]?.status ?? "not_required"} />
+                  <StatusPill
+                    status={r.payments?.[0]?.status ?? "not_required"}
+                    kind="payment"
+                  />
+                  {r.payments?.[0]?.method && (
+                    <div className="mt-1 text-xs text-white/40">
+                      {r.payments[0].method === "monthly"
+                        ? "Monthly DD"
+                        : "Paid in full"}
+                    </div>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   <span

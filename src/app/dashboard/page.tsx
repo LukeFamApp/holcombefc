@@ -25,9 +25,9 @@ type PlayerRow = {
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ registered?: string }>;
+  searchParams: Promise<{ registered?: string; payment?: string }>;
 }) {
-  const { registered } = await searchParams;
+  const { registered, payment } = await searchParams;
   const supabase = await createClient();
 
   const {
@@ -66,8 +66,13 @@ export default async function DashboardPage({
 
       {registered && (
         <p className="rounded-lg border border-accent/30 bg-accent/10 px-3.5 py-2.5 text-sm text-accent">
-          All done — your child is registered for {CURRENT_SEASON}. The club
-          will be in touch about fees.
+          All done — your child is registered for {CURRENT_SEASON}.
+        </p>
+      )}
+      {payment === "setup" && (
+        <p className="rounded-lg border border-accent/30 bg-accent/10 px-3.5 py-2.5 text-sm text-accent">
+          Your Direct Debit is set up — you&apos;re all sorted. Payments will
+          show as collected once your bank confirms them.
         </p>
       )}
 
@@ -98,8 +103,18 @@ export default async function DashboardPage({
                 )}
                 <div className="mt-3 flex flex-wrap gap-2">
                   {reg && <StatusPill status={reg.status} />}
-                  <StatusPill status={paymentStatus} />
+                  <StatusPill status={paymentStatus} kind="payment" />
                 </div>
+                {reg && (paymentStatus === "pending" || paymentStatus === "failed") && (
+                  <Link
+                    href={`/pay/${reg.id}`}
+                    className="mt-4 block w-full rounded-lg bg-accent px-4 py-2.5 text-center text-sm font-semibold text-black hover:bg-accent-dim transition-colors"
+                  >
+                    {paymentStatus === "failed"
+                      ? "Retry payment set-up"
+                      : "Set up your club fees"}
+                  </Link>
+                )}
               </GlassCard>
             );
           })}

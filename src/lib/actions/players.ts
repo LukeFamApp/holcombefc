@@ -136,13 +136,14 @@ export async function addPlayer(formData: FormData) {
     );
   }
 
+  // Registration is confirmed immediately — payment is set up right after.
   const { data: registration, error: regError } = await supabase
     .from("registrations")
     .insert({
       player_id: player.id,
       fee_plan_id: feePlanId,
       season: CURRENT_SEASON,
-      status: "pending",
+      status: "active",
     })
     .select("id")
     .single();
@@ -162,5 +163,5 @@ export async function addPlayer(formData: FormData) {
   });
 
   revalidatePath("/dashboard");
-  redirect("/dashboard?registered=1");
+  redirect(`/pay/${registration.id}?new=1`);
 }

@@ -36,6 +36,8 @@ create table if not exists public.fee_plans (
   team_id            uuid not null references public.teams(id) on delete cascade,
   name               text not null,           -- e.g. "Full Membership", "Training Only"
   annual_price_pence integer not null,
+  -- number of monthly Direct Debit instalments offered (null = pay in full only)
+  instalment_count   integer check (instalment_count is null or instalment_count between 2 and 12),
   created_at         timestamptz not null default now()
 );
 
@@ -78,12 +80,18 @@ create table if not exists public.registrations (
 );
 
 create table if not exists public.payments (
-  id                    uuid primary key default gen_random_uuid(),
-  registration_id       uuid not null references public.registrations(id) on delete cascade,
-  amount_pence          integer,
-  status                text not null default 'pending' check (status in ('pending', 'paid', 'failed', 'not_required')),
-  gocardless_mandate_id text, -- placeholder for future GoCardless integration
-  created_at            timestamptz not null default now()
+  id                            uuid primary key default gen_random_uuid(),
+  registration_id               uuid not null references public.registrations(id) on delete cascade,
+  amount_pence                  integer,
+  -- pending = payment not set up yet; processing = Direct Debit authorised and
+  -- collections underway; paid = fully collected
+  status                        text not null default 'pending' check (status in ('pending', 'processing', 'paid', 'failed', 'not_required', 'cancelled')),
+  method                        text check (method is null or method in ('full', 'monthly')),
+  gocardless_mandate_id         text,
+  gocardless_billing_request_id text,
+  gocardless_payment_id         text,
+  gocardless_subscription_id    text,
+  created_at                    timestamptz not null default now()
 );
 
 -- ---------------------------------------------------------------------------
@@ -247,13 +255,13 @@ insert into public.teams (name, age_group)
 select 'Under 14s Blues', 'U14'
 where not exists (select 1 from public.teams);
 
-insert into public.fee_plans (team_id, name, annual_price_pence)
-select t.id, plan.name, plan.price
+insert into public.fee_plans (team_id, name, annual_price_pence, instalment_count)
+select t.id, plan.name, plan.price, plan.instalments
 from public.teams t
 cross join (values
-  ('Full Membership', 15000),
-  ('Training Only',   10000)
-) as plan(name, price)
+  ('Full Membership', 15000, 6),
+  ('Training Only',   10000, 4)
+) as plan(name, price, instalments)
 where t.name = 'Under 14s Blues'
   and not exists (select 1 from public.fee_plans fp where fp.team_id = t.id);
 

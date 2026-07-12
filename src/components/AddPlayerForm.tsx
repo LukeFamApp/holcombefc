@@ -9,6 +9,7 @@ type FeePlan = {
   id: string;
   name: string;
   annual_price_pence: number;
+  instalment_count: number | null;
 };
 
 type Team = {
@@ -316,6 +317,13 @@ export default function AddPlayerForm({ teams }: { teams: Team[] }) {
                 {feePlans.map((p) => (
                   <option key={p.id} value={p.id} className="bg-[#0a0f1e]">
                     {p.name} — £{(p.annual_price_pence / 100).toFixed(0)}/yr
+                    {p.instalment_count
+                      ? ` (or ${p.instalment_count} × £${(
+                          p.annual_price_pence /
+                          p.instalment_count /
+                          100
+                        ).toFixed(0)}/mo)`
+                      : ""}
                   </option>
                 ))}
               </select>
