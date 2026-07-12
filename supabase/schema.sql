@@ -109,6 +109,9 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
 
+-- Only the auth trigger should ever invoke this — keep it off the REST API.
+revoke execute on function public.handle_new_user() from public, anon, authenticated;
+
 -- ---------------------------------------------------------------------------
 -- Admin helper (security definer avoids recursive RLS on parents)
 -- ---------------------------------------------------------------------------
