@@ -66,12 +66,9 @@ export async function startPaymentSetup(formData: FormData) {
   if (!registration || !payment || !feePlan) {
     redirect("/dashboard");
   }
-  if (
-    payment.gocardless_payment_id ||
-    payment.gocardless_subscription_id ||
-    payment.status === "paid" ||
-    payment.status === "processing"
-  ) {
+  // Only pending, failed, or cancelled payments can (re)start the flow —
+  // a cancelled mandate is restarted with a completely fresh one.
+  if (!["pending", "failed", "cancelled"].includes(payment.status)) {
     redirect("/dashboard");
   }
   if (method === "monthly" && !feePlan.instalment_count) {

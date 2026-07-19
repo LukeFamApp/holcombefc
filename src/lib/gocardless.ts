@@ -115,6 +115,25 @@ export async function createPayment(options: {
   return data.payments;
 }
 
+export type GcPaymentDetail = {
+  id: string;
+  amount: number;
+  status: string;
+  charge_date: string;
+  description: string | null;
+};
+
+// Everything ever collected (or scheduled) against a mandate — covers both
+// the single pay-in-full payment and monthly subscription collections.
+export async function listPaymentsForMandate(
+  mandateId: string,
+): Promise<GcPaymentDetail[]> {
+  const data = await gc<{ payments: GcPaymentDetail[] }>(
+    `/payments?mandate=${encodeURIComponent(mandateId)}&limit=100`,
+  );
+  return data.payments;
+}
+
 export async function createSubscription(options: {
   mandateId: string;
   amountPence: number;

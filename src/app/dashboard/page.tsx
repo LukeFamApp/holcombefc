@@ -9,7 +9,7 @@ type RegistrationRow = {
   season: string;
   status: string;
   fee_plans: { name: string; annual_price_pence: number } | null;
-  payments: { status: string }[] | null;
+  payments: { status: string; method: string | null }[] | null;
 };
 
 type PlayerRow = {
@@ -45,7 +45,7 @@ export default async function DashboardPage({
       .select(
         `id, first_name, last_name, date_of_birth, photo_consent,
          teams ( name, age_group ),
-         registrations ( id, season, status, fee_plans ( name, annual_price_pence ), payments ( status ) )`,
+         registrations ( id, season, status, fee_plans ( name, annual_price_pence ), payments ( status, method ) )`,
       )
       .order("created_at", { ascending: false })
       .returns<PlayerRow[]>(),
@@ -105,16 +105,27 @@ export default async function DashboardPage({
                   {reg && <StatusPill status={reg.status} />}
                   <StatusPill status={paymentStatus} kind="payment" />
                 </div>
-                {reg && (paymentStatus === "pending" || paymentStatus === "failed") && (
-                  <Link
-                    href={`/pay/${reg.id}`}
-                    className="mt-4 block w-full rounded-lg bg-accent px-4 py-2.5 text-center text-sm font-semibold text-black hover:bg-accent-dim transition-colors"
-                  >
-                    {paymentStatus === "failed"
-                      ? "Retry payment set-up"
-                      : "Set up your club fees"}
-                  </Link>
-                )}
+                {reg &&
+                  ["pending", "failed", "cancelled"].includes(paymentStatus) && (
+                    <Link
+                      href={`/pay/${reg.id}`}
+                      className="mt-4 block w-full rounded-lg bg-accent px-4 py-2.5 text-center text-sm font-semibold text-black hover:bg-accent-dim transition-colors"
+                    >
+                      {paymentStatus === "pending"
+                        ? "Set up your club fees"
+                        : "Set up a new Direct Debit"}
+                    </Link>
+                  )}
+                {reg &&
+                  reg.payments?.[0]?.method &&
+                  paymentStatus !== "pending" && (
+                    <Link
+                      href={`/payments/${reg.id}`}
+                      className="mt-3 block text-center text-xs font-(family-name:--font-ui-mono) uppercase tracking-wide text-white/50 hover:text-accent transition-colors"
+                    >
+                      Payment history →
+                    </Link>
+                  )}
               </GlassCard>
             );
           })}
