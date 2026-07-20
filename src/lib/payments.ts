@@ -4,6 +4,8 @@ import {
   getBillingRequest,
   createPayment,
   createSubscription,
+  createMandateBillingRequest,
+  createBillingRequestFlow,
   listPaymentsForMandate,
   type GcPaymentDetail,
 } from "@/lib/gocardless";
@@ -42,6 +44,55 @@ export type Balance = {
   committedPence: number; // cleared + currently in flight
   remainingPence: number; // what a (re)started plan should still collect
 };
+
+// Starts (or restarts) the GoCardless hosted mandate flow for a payment,
+// recording the chosen method + billing request before returning the URL
+// to redirect the parent to. Shared by the standalone /pay page and the
+// straight-into-payment path at the end of registration.
+export async function createBillingRequestFlowForPayment(options: {
+  paymentId: string;
+  registrationId: string;
+  method: "full" | "monthly";
+  parent?: {
+    first_name?: string | null;
+    last_name?: string | null;
+    email?: string | null;
+  } | null;
+}): Promise<string> {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const billingRequest = await createMandateBillingRequest();
+
+  const admin = createAdminClient();
+  await admin
+    .from("payments")
+    .update({
+      method: options.method,
+      gocardless_billing_request_id: billingRequest.id,
+    })
+    .eq("id", options.paymentId);
+
+  const flow = await createBillingRequestFlow({
+    billingRequestId: billingRequest.id,
+    redirectUri: `${siteUrl}/pay/${options.registrationId}/complete`,
+    exitUri: `${siteUrl}/pay/${options.registrationId}?cancelled=1`,
+    prefilledCustomer: options.parent?.email
+      ? {
+          given_name: options.parent.first_name ?? undefined,
+          family_name: options.parent.last_name ?? undefined,
+          email: options.parent.email,
+        }
+      : undefined,
+  });
+  return flow.authorisation_url;
+}
+
+// Consistent, non-alarming wording for the (rare) case where GoCardless
+// can't be reached — used by both entry points into the payment flow.
+export function friendlyGoCardlessError(err: unknown): string {
+  return err instanceof Error && err.message.includes("GOCARDLESS_ACCESS_TOKEN")
+    ? "Online payments aren't switched on yet — the club will be in touch about fees."
+    : "Something went wrong talking to our payment provider. Please try again from your dashboard.";
+}
 
 // Mirror GoCardless's record of collections on a mandate into our ledger.
 export async function syncCollections(

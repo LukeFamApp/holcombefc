@@ -4,6 +4,10 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { CURRENT_SEASON } from "@/lib/config";
+import {
+  createBillingRequestFlowForPayment,
+  friendlyGoCardlessError,
+} from "@/lib/payments";
 
 function text(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
@@ -37,8 +41,10 @@ export async function addPlayer(formData: FormData) {
   const medicalConditions = optional(formData, "medicalConditions");
   const allergies = optional(formData, "allergies");
   const medications = optional(formData, "medications");
+  const heartConditions = optional(formData, "heartConditions");
   const photoConsent = text(formData, "photoConsent") === "yes";
   const cocAccepted = formData.get("cocAccepted") === "on";
+  const paymentMethod = text(formData, "paymentMethod") === "monthly" ? "monthly" : "full";
 
   if (
     !firstName ||
@@ -87,7 +93,7 @@ export async function addPlayer(formData: FormData) {
   // time of registration (not whatever the plan costs later).
   const { data: feePlan, error: feePlanError } = await supabase
     .from("fee_plans")
-    .select("id, annual_price_pence")
+    .select("id, name, annual_price_pence, instalment_count")
     .eq("id", feePlanId)
     .eq("team_id", teamId)
     .single();
@@ -117,6 +123,7 @@ export async function addPlayer(formData: FormData) {
       medical_conditions: medicalConditions,
       allergies,
       medications,
+      heart_conditions: heartConditions,
       photo_consent: photoConsent,
       coc_accepted_at: new Date().toISOString(),
     })
@@ -136,7 +143,9 @@ export async function addPlayer(formData: FormData) {
     );
   }
 
-  // Registration is confirmed immediately — payment is set up right after.
+  // Registration is confirmed immediately — payment is set up right after,
+  // as one continuous journey rather than a step a parent can wander off
+  // from.
   const { data: registration, error: regError } = await supabase
     .from("registrations")
     .insert({
@@ -156,12 +165,80 @@ export async function addPlayer(formData: FormData) {
     );
   }
 
-  await supabase.from("payments").insert({
-    registration_id: registration.id,
-    amount_pence: feePlan.annual_price_pence,
-    status: "pending",
-  });
+  const { data: paymentRow, error: paymentError } = await supabase
+    .from("payments")
+    .insert({
+      registration_id: registration.id,
+      amount_pence: feePlan.annual_price_pence,
+      status: "pending",
+    })
+    .select("id")
+    .single();
+
+  if (paymentError || !paymentRow) {
+    redirect(
+      `/register?error=${encodeURIComponent(
+        "Your player was registered, but we couldn't set up payment — please try again from your dashboard.",
+      )}`,
+    );
+  }
+
+  const { data: parentRow } = await supabase
+    .from("parents")
+    .select("first_name, last_name, email")
+    .eq("id", user.id)
+    .single();
 
   revalidatePath("/dashboard");
-  redirect(`/pay/${registration.id}?new=1`);
+
+  let authorisationUrl: string;
+  try {
+    authorisationUrl = await createBillingRequestFlowForPayment({
+      paymentId: paymentRow.id,
+      registrationId: registration.id,
+      method: paymentMethod,
+      parent: parentRow,
+    });
+  } catch (err) {
+    redirect(
+      `/pay/${registration.id}?error=${encodeURIComponent(friendlyGoCardlessError(err))}`,
+    );
+  }
+
+  redirect(authorisationUrl);
+}
+
+export async function requestPlayerRemoval(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    redirect("/login?redirect=/dashboard");
+  }
+
+  const playerId = text(formData, "playerId");
+  const reason = optional(formData, "reason");
+  if (!playerId) {
+    redirect("/dashboard");
+  }
+
+  // Don't stack duplicate requests if one's already pending.
+  const { data: existing } = await supabase
+    .from("player_removal_requests")
+    .select("id")
+    .eq("player_id", playerId)
+    .eq("status", "pending")
+    .maybeSingle();
+
+  if (!existing) {
+    await supabase.from("player_removal_requests").insert({
+      player_id: playerId,
+      requested_by: user.id,
+      reason,
+    });
+  }
+
+  revalidatePath("/dashboard");
+  redirect("/dashboard?removalRequested=1");
 }

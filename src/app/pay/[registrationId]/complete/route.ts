@@ -76,5 +76,5 @@ export async function GET(
     );
   }
 
-  return NextResponse.redirect(`${origin}/dashboard?payment=setup`);
+  return NextResponse.redirect(`${origin}/dashboard?payment=setup&tour=policies`);
 }

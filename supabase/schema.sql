@@ -58,6 +58,7 @@ create table if not exists public.players (
   medical_conditions      text,
   allergies               text,
   medications             text,
+  heart_conditions        text,
   -- consents
   photo_consent           boolean not null default false,
   coc_accepted_at         timestamptz not null default now(),
@@ -109,6 +110,22 @@ create table if not exists public.payment_collections (
 
 create index if not exists payment_collections_payment_id_idx
   on public.payment_collections (payment_id);
+
+-- Parent-initiated player removal requests: never auto-deletes, always goes
+-- through an admin approval step.
+create table if not exists public.player_removal_requests (
+  id           uuid primary key default gen_random_uuid(),
+  player_id    uuid not null references public.players(id) on delete cascade,
+  requested_by uuid not null references public.parents(id) on delete cascade,
+  reason       text,
+  status       text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  created_at   timestamptz not null default now(),
+  resolved_at  timestamptz,
+  resolved_by  uuid references public.parents(id)
+);
+
+create index if not exists player_removal_requests_player_id_idx
+  on public.player_removal_requests (player_id);
 
 -- ---------------------------------------------------------------------------
 -- Auto-create a parent row whenever someone signs up via Supabase Auth
@@ -208,6 +225,13 @@ drop policy if exists "players_update_own_or_admin" on public.players;
 create policy "players_update_own_or_admin" on public.players
   for update using (parent_id = auth.uid() or public.is_admin());
 
+-- Only admins can delete a player, and only ever via an approved removal
+-- request (see player_removal_requests below) — never straight from a
+-- parent action.
+drop policy if exists "players_admin_delete" on public.players;
+create policy "players_admin_delete" on public.players
+  for delete using (public.is_admin());
+
 -- registrations: a parent can create/view registrations for their own players;
 -- only admins can change status (pending -> active/withdrawn)
 drop policy if exists "registrations_select_own_or_admin" on public.registrations;
@@ -276,6 +300,28 @@ create policy "collections_select_own_or_admin" on public.payment_collections
       where pay.id = payment_collections.payment_id and p.parent_id = auth.uid()
     )
   );
+
+-- player_removal_requests: a parent can create/view requests for their own
+-- children; only admins can resolve (approve/reject) them
+alter table public.player_removal_requests enable row level security;
+
+drop policy if exists "removal_requests_select_own_or_admin" on public.player_removal_requests;
+create policy "removal_requests_select_own_or_admin" on public.player_removal_requests
+  for select using (requested_by = auth.uid() or public.is_admin());
+
+drop policy if exists "removal_requests_insert_own" on public.player_removal_requests;
+create policy "removal_requests_insert_own" on public.player_removal_requests
+  for insert with check (
+    requested_by = auth.uid()
+    and exists (
+      select 1 from public.players p
+      where p.id = player_id and p.parent_id = auth.uid()
+    )
+  );
+
+drop policy if exists "removal_requests_admin_update" on public.player_removal_requests;
+create policy "removal_requests_admin_update" on public.player_removal_requests
+  for update using (public.is_admin()) with check (public.is_admin());
 
 -- ---------------------------------------------------------------------------
 -- Seed teams + fee plans (edit freely, or manage from /admin/teams once

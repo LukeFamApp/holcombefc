@@ -2,11 +2,10 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import {
-  createMandateBillingRequest,
-  createBillingRequestFlow,
-} from "@/lib/gocardless";
+  createBillingRequestFlowForPayment,
+  friendlyGoCardlessError,
+} from "@/lib/payments";
 
 // Kicks off the GoCardless hosted mandate flow for a registration.
 // The parent chooses "full" or "monthly" on /pay/[registrationId].
@@ -75,43 +74,18 @@ export async function startPaymentSetup(formData: FormData) {
     redirect(`/pay/${registrationId}?error=${encodeURIComponent("Monthly payments aren't available for this plan.")}`);
   }
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-  const parent = registration.players?.parents;
-
   let authorisationUrl: string;
   try {
-    const billingRequest = await createMandateBillingRequest();
-
-    // Record the chosen method + billing request before redirecting, so the
-    // completion step knows what to collect.
-    const admin = createAdminClient();
-    await admin
-      .from("payments")
-      .update({
-        method,
-        gocardless_billing_request_id: billingRequest.id,
-      })
-      .eq("id", payment.id);
-
-    const flow = await createBillingRequestFlow({
-      billingRequestId: billingRequest.id,
-      redirectUri: `${siteUrl}/pay/${registrationId}/complete`,
-      exitUri: `${siteUrl}/pay/${registrationId}?cancelled=1`,
-      prefilledCustomer: parent
-        ? {
-            given_name: parent.first_name,
-            family_name: parent.last_name,
-            email: parent.email,
-          }
-        : undefined,
+    authorisationUrl = await createBillingRequestFlowForPayment({
+      paymentId: payment.id,
+      registrationId,
+      method,
+      parent: registration.players?.parents,
     });
-    authorisationUrl = flow.authorisation_url;
   } catch (err) {
-    const message =
-      err instanceof Error && err.message.includes("GOCARDLESS_ACCESS_TOKEN")
-        ? "Online payments aren't switched on yet — the club will be in touch about fees."
-        : "Something went wrong talking to our payment provider. Please try again.";
-    redirect(`/pay/${registrationId}?error=${encodeURIComponent(message)}`);
+    redirect(
+      `/pay/${registrationId}?error=${encodeURIComponent(friendlyGoCardlessError(err))}`,
+    );
   }
 
   redirect(authorisationUrl);

@@ -65,8 +65,8 @@ export default async function RegisterPage({
       </GlassCard>
 
       <p className="text-xs text-white/40 text-center">
-        No payment is taken now — we&apos;ll be in touch about fees once your
-        registration is confirmed.
+        The last step sets up how you&apos;ll pay — in full or by monthly
+        Direct Debit — securely with GoCardless.
       </p>
     </div>
   );

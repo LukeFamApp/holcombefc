@@ -71,7 +71,9 @@ function YesNo({
   );
 }
 
-const STEPS = ["Player details", "Medical", "Consent"] as const;
+const STEPS = ["Player details", "Medical", "Consent", "Payment"] as const;
+const pounds = (pence: number) =>
+  pence % 100 === 0 ? `£${(pence / 100).toFixed(0)}` : `£${(pence / 100).toFixed(2)}`;
 
 function FinalStepButtons({
   onBack,
@@ -100,7 +102,7 @@ function FinalStepButtons({
         disabled={pending}
         className="flex-1 rounded-lg bg-accent px-5 py-3 text-sm font-semibold text-black hover:bg-accent-dim transition-colors disabled:opacity-60"
       >
-        {pending ? "Registering… one moment" : "Complete registration"}
+        {pending ? "Taking you to secure payment…" : "Continue to payment"}
       </button>
     </div>
   );
@@ -130,14 +132,23 @@ export default function AddPlayerForm({ teams }: { teams: Team[] }) {
   const [allergies, setAllergies] = useState("");
   const [hasMedications, setHasMedications] = useState<"yes" | "no" | "">("");
   const [medications, setMedications] = useState("");
+  const [hasHeartConditions, setHasHeartConditions] = useState<"yes" | "no" | "">("");
+  const [heartConditions, setHeartConditions] = useState("");
 
   // Step 3 — consents
   const [photoConsent, setPhotoConsent] = useState<"yes" | "no" | "">("");
   const [cocAccepted, setCocAccepted] = useState(false);
 
+  // Step 4 — payment method
+  const [paymentMethod, setPaymentMethod] = useState<"full" | "monthly">("full");
+
   const feePlans = useMemo(
     () => teams.find((t) => t.id === teamId)?.fee_plans ?? [],
     [teams, teamId],
+  );
+  const selectedPlan = useMemo(
+    () => feePlans.find((p) => p.id === feePlanId) ?? null,
+    [feePlans, feePlanId],
   );
 
   function validateStep(current: number): string {
@@ -158,7 +169,12 @@ export default function AddPlayerForm({ teams }: { teams: Team[] }) {
       }
     }
     if (current === 1) {
-      if (!hasConditions || !hasAllergies || !hasMedications) {
+      if (
+        !hasConditions ||
+        !hasAllergies ||
+        !hasMedications ||
+        !hasHeartConditions
+      ) {
         return "Please answer every question — choose Yes or No.";
       }
       if (hasConditions === "yes" && !conditions.trim()) {
@@ -170,6 +186,9 @@ export default function AddPlayerForm({ teams }: { teams: Team[] }) {
       if (hasMedications === "yes" && !medications.trim()) {
         return "Please give details of the medication(s).";
       }
+      if (hasHeartConditions === "yes" && !heartConditions.trim()) {
+        return "Please give details of the heart condition(s).";
+      }
     }
     if (current === 2) {
       if (!photoConsent) {
@@ -177,6 +196,11 @@ export default function AddPlayerForm({ teams }: { teams: Team[] }) {
       }
       if (!cocAccepted) {
         return "You need to accept the codes of conduct to register.";
+      }
+    }
+    if (current === 3) {
+      if (!paymentMethod) {
+        return "Please choose how you'd like to pay.";
       }
     }
     return "";
@@ -309,7 +333,10 @@ export default function AddPlayerForm({ teams }: { teams: Team[] }) {
                 className={`${inputClass} disabled:opacity-40`}
                 value={feePlanId}
                 disabled={!teamId}
-                onChange={(e) => setFeePlanId(e.target.value)}
+                onChange={(e) => {
+                  setFeePlanId(e.target.value);
+                  setPaymentMethod("full");
+                }}
               >
                 <option value="" disabled>
                   {teamId ? "Select…" : "Choose a team first"}
@@ -374,6 +401,22 @@ export default function AddPlayerForm({ teams }: { teams: Team[] }) {
           </div>
           <div className="flex flex-col gap-2">
             <p className="text-sm text-white">
+              Does your child, or any immediate family member, have any known
+              heart conditions?
+            </p>
+            <YesNo value={hasHeartConditions} onChange={setHasHeartConditions} />
+            {hasHeartConditions === "yes" && (
+              <textarea
+                className={`${inputClass} resize-none`}
+                rows={3}
+                placeholder="Please give details"
+                value={heartConditions}
+                onChange={(e) => setHeartConditions(e.target.value)}
+              />
+            )}
+          </div>
+          <div className="flex flex-col gap-2">
+            <p className="text-sm text-white">
               Any allergies? (food, medication, insect stings…)
             </p>
             <YesNo value={hasAllergies} onChange={setHasAllergies} />
@@ -405,8 +448,50 @@ export default function AddPlayerForm({ teams }: { teams: Team[] }) {
         </div>
       )}
 
-      {/* STEP 3 — consents + submit */}
+      {/* STEP 3 — consents */}
       {step === 2 && (
+        <div className="flex flex-col gap-5">
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-semibold text-white">
+              Photos &amp; videos
+            </p>
+            <p className="text-sm text-white/55">
+              We sometimes take photos and short videos of players for use in
+              match reports, on our website, and on our social-media channels.
+              Are you happy for your child to be included?
+            </p>
+            <YesNo value={photoConsent} onChange={setPhotoConsent} />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-semibold text-white">
+              Codes of conduct
+            </p>
+            <label className="flex items-start gap-3 rounded-lg border border-white/10 bg-black/20 p-4 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={cocAccepted}
+                onChange={(e) => setCocAccepted(e.target.checked)}
+                className="mt-0.5 h-5 w-5 accent-(--accent)"
+              />
+              <span className="text-sm text-white/70">
+                I have read and accept the Holcombe FC{" "}
+                <Link
+                  href="/policies"
+                  target="_blank"
+                  className="text-accent hover:underline"
+                >
+                  codes of conduct and club policies
+                </Link>
+                , on behalf of myself and my child.
+              </span>
+            </label>
+          </div>
+        </div>
+      )}
+
+      {/* STEP 4 — payment method + submit */}
+      {step === 3 && (
         <form action={addPlayer} className="flex flex-col gap-5">
           {/* Everything collected in earlier steps travels as hidden fields */}
           <input type="hidden" name="firstName" value={firstName} />
@@ -443,50 +528,85 @@ export default function AddPlayerForm({ teams }: { teams: Team[] }) {
             name="medications"
             value={hasMedications === "yes" ? medications : ""}
           />
+          <input
+            type="hidden"
+            name="heartConditions"
+            value={hasHeartConditions === "yes" ? heartConditions : ""}
+          />
           <input type="hidden" name="photoConsent" value={photoConsent} />
+          <input type="hidden" name="cocAccepted" value={cocAccepted ? "on" : ""} />
+          <input type="hidden" name="paymentMethod" value={paymentMethod} />
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-3">
             <p className="text-sm font-semibold text-white">
-              Photos &amp; videos
+              How would you like to pay?
             </p>
-            <p className="text-sm text-white/55">
-              We sometimes take photos and short videos of players for use in
-              match reports, on our website, and on our social-media channels.
-              Are you happy for your child to be included?
-            </p>
-            <YesNo value={photoConsent} onChange={setPhotoConsent} />
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <p className="text-sm font-semibold text-white">
-              Codes of conduct
-            </p>
-            <label className="flex items-start gap-3 rounded-lg border border-white/10 bg-black/20 p-4 cursor-pointer">
-              <input
-                type="checkbox"
-                name="cocAccepted"
-                checked={cocAccepted}
-                onChange={(e) => setCocAccepted(e.target.checked)}
-                className="mt-0.5 h-5 w-5 accent-(--accent)"
-              />
-              <span className="text-sm text-white/70">
-                I have read and accept the Holcombe FC{" "}
-                <Link
-                  href="/policies"
-                  target="_blank"
-                  className="text-accent hover:underline"
+            {selectedPlan && (
+              <p className="text-sm text-white/55">
+                {selectedPlan.name} for{" "}
+                {firstName.trim() || "your child"} —{" "}
+                {pounds(selectedPlan.annual_price_pence)}/yr.
+              </p>
+            )}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setPaymentMethod("full")}
+                className={`rounded-xl border p-4 text-left transition-colors ${
+                  paymentMethod === "full"
+                    ? "border-accent bg-accent/10"
+                    : "border-white/15 hover:bg-white/5"
+                }`}
+              >
+                <span className={labelClass}>Pay in full</span>
+                <p className="mt-1 font-(family-name:--font-display) text-2xl text-white">
+                  {selectedPlan ? pounds(selectedPlan.annual_price_pence) : "—"}
+                </p>
+                <p className="mt-1 text-xs text-white/50">
+                  One Direct Debit collection.
+                </p>
+              </button>
+              {selectedPlan?.instalment_count ? (
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod("monthly")}
+                  className={`rounded-xl border p-4 text-left transition-colors ${
+                    paymentMethod === "monthly"
+                      ? "border-accent bg-accent/10"
+                      : "border-white/15 hover:bg-white/5"
+                  }`}
                 >
-                  codes of conduct and club policies
-                </Link>
-                , on behalf of myself and my child.
-              </span>
-            </label>
+                  <span className={labelClass}>Pay monthly</span>
+                  <p className="mt-1 font-(family-name:--font-display) text-2xl text-white">
+                    {pounds(
+                      selectedPlan.annual_price_pence /
+                        selectedPlan.instalment_count,
+                    )}
+                    <span className="text-sm text-white/50">
+                      {" "}
+                      × {selectedPlan.instalment_count}
+                    </span>
+                  </p>
+                  <p className="mt-1 text-xs text-white/50">
+                    Same total, spread across the season.
+                  </p>
+                </button>
+              ) : (
+                <div className="rounded-xl border border-white/10 p-4 flex items-center justify-center text-center text-xs text-white/35">
+                  Monthly payments aren&apos;t available for this plan.
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-white/40">
+              Next you&apos;ll be taken to GoCardless, the UK&apos;s Direct
+              Debit specialist, to securely set up your bank details.
+            </p>
           </div>
 
           <FinalStepButtons
             onBack={back}
             onValidate={(e) => {
-              const err = validateStep(2);
+              const err = validateStep(3);
               setStepError(err);
               if (err) e.preventDefault();
             }}
@@ -494,8 +614,8 @@ export default function AddPlayerForm({ teams }: { teams: Team[] }) {
         </form>
       )}
 
-      {/* Nav buttons for steps 1–2 */}
-      {step < 2 && (
+      {/* Nav buttons for steps 1–3 */}
+      {step < 3 && (
         <div className="flex gap-3">
           {step > 0 && (
             <button

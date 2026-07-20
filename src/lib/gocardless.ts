@@ -147,6 +147,13 @@ export async function listPaymentsForMandate(
   return data.payments;
 }
 
+// Cancels everything tied to this mandate — any active subscription and
+// any not-yet-submitted payments. Used when a player is removed with a
+// live Direct Debit, so the family doesn't keep getting charged.
+export async function cancelMandate(id: string): Promise<void> {
+  await gc(`/mandates/${id}/actions/cancel`, { method: "POST", body: {} });
+}
+
 export async function createSubscription(options: {
   mandateId: string;
   amountPence: number;

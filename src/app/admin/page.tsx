@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { GlassCard, StatusPill } from "@/components/ui";
 import { CURRENT_SEASON } from "@/lib/config";
 import { movePlayerToTeam } from "@/lib/actions/teams";
+import { resolvePlayerRemoval } from "@/lib/actions/removals";
 
 type RegistrationRow = {
   id: string;
@@ -18,6 +19,7 @@ type RegistrationRow = {
     medical_conditions: string | null;
     allergies: string | null;
     medications: string | null;
+    heart_conditions: string | null;
     photo_consent: boolean;
     teams: { id: string; name: string; age_group: string } | null;
     parents: {
@@ -31,27 +33,49 @@ type RegistrationRow = {
   payments: { status: string; method: string | null }[] | null;
 };
 
+type RemovalRequestRow = {
+  id: string;
+  reason: string | null;
+  created_at: string;
+  players: {
+    first_name: string;
+    last_name: string;
+    parents: { first_name: string; last_name: string; email: string } | null;
+  } | null;
+};
+
 export default async function AdminPage() {
   const supabase = await createClient();
 
-  const [{ data: registrations }, { data: allTeams }] = await Promise.all([
-    supabase
-      .from("registrations")
-      .select(
-        `id, season, status, created_at,
-         players ( id, first_name, last_name, date_of_birth, emergency_contact_name, emergency_contact_phone,
-                   medical_conditions, allergies, medications, photo_consent,
-                   teams ( id, name, age_group ), parents ( first_name, last_name, email, phone ) ),
-         fee_plans ( name, annual_price_pence ),
-         payments ( status, method )`,
-      )
-      .order("created_at", { ascending: false })
-      .returns<RegistrationRow[]>(),
-    supabase.from("teams").select("id, name, age_group").order("age_group"),
-  ]);
+  const [{ data: registrations }, { data: allTeams }, { data: removalRequests }] =
+    await Promise.all([
+      supabase
+        .from("registrations")
+        .select(
+          `id, season, status, created_at,
+           players ( id, first_name, last_name, date_of_birth, emergency_contact_name, emergency_contact_phone,
+                     medical_conditions, allergies, medications, heart_conditions, photo_consent,
+                     teams ( id, name, age_group ), parents ( first_name, last_name, email, phone ) ),
+           fee_plans ( name, annual_price_pence ),
+           payments ( status, method )`,
+        )
+        .order("created_at", { ascending: false })
+        .returns<RegistrationRow[]>(),
+      supabase.from("teams").select("id, name, age_group").order("age_group"),
+      supabase
+        .from("player_removal_requests")
+        .select(
+          `id, reason, created_at,
+           players ( first_name, last_name, parents ( first_name, last_name, email ) )`,
+        )
+        .eq("status", "pending")
+        .order("created_at", { ascending: true })
+        .returns<RemovalRequestRow[]>(),
+    ]);
 
   const rows = registrations ?? [];
   const teams = allTeams ?? [];
+  const pendingRemovals = removalRequests ?? [];
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-12 flex flex-col gap-6">
@@ -64,6 +88,65 @@ export default async function AdminPage() {
           {CURRENT_SEASON}
         </p>
       </div>
+
+      {pendingRemovals.length > 0 && (
+        <GlassCard strong className="p-5">
+          <h2 className="font-semibold text-white mb-1">
+            Player removal requests
+          </h2>
+          <p className="text-sm text-white/50 mb-4">
+            {pendingRemovals.length} awaiting your review — nothing is
+            deleted until you approve it.
+          </p>
+          <div className="flex flex-col gap-3">
+            {pendingRemovals.map((req) => (
+              <div
+                key={req.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/20 px-4 py-3"
+              >
+                <div>
+                  <p className="text-sm text-white">
+                    {req.players?.first_name} {req.players?.last_name}
+                    <span className="text-white/40">
+                      {" "}
+                      — requested by {req.players?.parents?.first_name}{" "}
+                      {req.players?.parents?.last_name} (
+                      {req.players?.parents?.email})
+                    </span>
+                  </p>
+                  {req.reason && (
+                    <p className="text-xs text-white/50 mt-0.5">
+                      &ldquo;{req.reason}&rdquo;
+                    </p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <form action={resolvePlayerRemoval}>
+                    <input type="hidden" name="requestId" value={req.id} />
+                    <input type="hidden" name="decision" value="reject" />
+                    <button
+                      type="submit"
+                      className="rounded-lg border border-white/15 px-3 py-1.5 text-xs font-semibold text-white/70 hover:bg-white/10 hover:text-white transition-colors"
+                    >
+                      Keep player
+                    </button>
+                  </form>
+                  <form action={resolvePlayerRemoval}>
+                    <input type="hidden" name="requestId" value={req.id} />
+                    <input type="hidden" name="decision" value="approve" />
+                    <button
+                      type="submit"
+                      className="rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-500/10 transition-colors"
+                    >
+                      Approve removal
+                    </button>
+                  </form>
+                </div>
+              </div>
+            ))}
+          </div>
+        </GlassCard>
+      )}
 
       <GlassCard className="overflow-x-auto">
         <table className="w-full min-w-[1000px] text-sm">
@@ -172,6 +255,8 @@ export default async function AdminPage() {
                       `Allergies: ${r.players.allergies}`,
                     r.players?.medications &&
                       `Medication: ${r.players.medications}`,
+                    r.players?.heart_conditions &&
+                      `⚠ Heart: ${r.players.heart_conditions}`,
                   ]
                     .filter(Boolean)
                     .join(" · ") || "None declared"}
