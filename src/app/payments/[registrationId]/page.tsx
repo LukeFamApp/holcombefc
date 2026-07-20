@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { listPaymentsForMandate, type GcPaymentDetail } from "@/lib/gocardless";
+import { syncCollections, getBalance } from "@/lib/payments";
 import { GlassCard, StatusPill } from "@/components/ui";
 
 type Row = {
@@ -14,6 +14,13 @@ type Row = {
     instalment_count: number | null;
   } | null;
   players: { first_name: string; last_name: string } | null;
+};
+
+type CollectionRow = {
+  gocardless_payment_id: string;
+  amount_pence: number;
+  charge_date: string | null;
+  status: string;
 };
 
 // Parent-friendly wording for GoCardless payment lifecycle states.
@@ -64,31 +71,42 @@ export default async function PaymentHistoryPage({
   const admin = createAdminClient();
   const { data: payment } = await admin
     .from("payments")
-    .select("status, method, gocardless_mandate_id")
+    .select("id, status, method, gocardless_mandate_id")
     .eq("registration_id", registrationId)
     .single<{
+      id: string;
       status: string;
       method: string | null;
       gocardless_mandate_id: string | null;
     }>();
 
-  let collections: GcPaymentDetail[] = [];
+  // Refresh the ledger from the current mandate, then render from the
+  // ledger — which also keeps collections from earlier, cancelled mandates.
   let loadError = false;
   if (payment?.gocardless_mandate_id) {
     try {
-      collections = await listPaymentsForMandate(payment.gocardless_mandate_id);
-      collections.sort((a, b) => a.charge_date.localeCompare(b.charge_date));
+      await syncCollections(payment.id, payment.gocardless_mandate_id);
     } catch {
       loadError = true;
     }
   }
 
+  const { data: collectionRows } = payment
+    ? await admin
+        .from("payment_collections")
+        .select("gocardless_payment_id, amount_pence, charge_date, status")
+        .eq("payment_id", payment.id)
+        .order("charge_date", { ascending: true, nullsFirst: false })
+        .returns<CollectionRow[]>()
+    : { data: [] as CollectionRow[] };
+  const collections = collectionRows ?? [];
+
   const plan = registration.fee_plans;
   const player = registration.players;
-  const collected = collections
-    .filter((c) => c.status === "confirmed" || c.status === "paid_out")
-    .reduce((sum, c) => sum + c.amount, 0);
   const total = plan?.annual_price_pence ?? 0;
+  const balance = payment
+    ? await getBalance(payment.id, total)
+    : { collectedPence: 0 };
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:px-6 sm:py-12 flex flex-col gap-6">
@@ -115,7 +133,7 @@ export default async function PaymentHistoryPage({
             Collected so far
           </p>
           <p className="font-(family-name:--font-display) text-3xl text-white mt-1">
-            £{(collected / 100).toFixed(2)}
+            £{(balance.collectedPence / 100).toFixed(2)}
             <span className="text-lg text-white/40">
               {" "}
               / £{(total / 100).toFixed(0)}
@@ -127,7 +145,7 @@ export default async function PaymentHistoryPage({
           {payment?.method && (
             <span className="text-xs text-white/45">
               {payment.method === "monthly"
-                ? `${plan?.instalment_count ?? "—"} monthly instalments`
+                ? "Monthly instalments"
                 : "Paying in full"}
             </span>
           )}
@@ -143,20 +161,22 @@ export default async function PaymentHistoryPage({
           };
           return (
             <div
-              key={c.id}
+              key={c.gocardless_payment_id}
               className="flex items-center justify-between gap-3 px-5 py-3.5"
             >
               <div>
                 <p className="text-sm text-white">
-                  {new Date(c.charge_date + "T00:00:00").toLocaleDateString(
-                    "en-GB",
-                    { day: "numeric", month: "long", year: "numeric" },
-                  )}
+                  {c.charge_date
+                    ? new Date(c.charge_date + "T00:00:00").toLocaleDateString(
+                        "en-GB",
+                        { day: "numeric", month: "long", year: "numeric" },
+                      )
+                    : "Date to be confirmed"}
                 </p>
                 <p className={`text-xs ${s.tone}`}>{s.label}</p>
               </div>
               <p className="font-(family-name:--font-ui-mono) text-white">
-                £{(c.amount / 100).toFixed(2)}
+                £{(c.amount_pence / 100).toFixed(2)}
               </p>
             </div>
           );
@@ -164,7 +184,7 @@ export default async function PaymentHistoryPage({
         {collections.length === 0 && (
           <p className="px-5 py-8 text-center text-sm text-white/40">
             {loadError
-              ? "We couldn't load your payments just now — please try again shortly."
+              ? "We couldn't refresh your payments just now — please try again shortly."
               : "No collections yet — payments will appear here once your first one is scheduled."}
           </p>
         )}

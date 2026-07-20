@@ -94,6 +94,22 @@ create table if not exists public.payments (
   created_at                    timestamptz not null default now()
 );
 
+-- Running ledger of individual Direct Debit collections, so payment history
+-- and outstanding balances survive mandate cancellations/retries.
+create table if not exists public.payment_collections (
+  id                     uuid primary key default gen_random_uuid(),
+  payment_id             uuid not null references public.payments(id) on delete cascade,
+  gocardless_payment_id  text not null unique,
+  amount_pence           integer not null,
+  charge_date            date,
+  status                 text not null,
+  created_at             timestamptz not null default now(),
+  updated_at             timestamptz not null default now()
+);
+
+create index if not exists payment_collections_payment_id_idx
+  on public.payment_collections (payment_id);
+
 -- ---------------------------------------------------------------------------
 -- Auto-create a parent row whenever someone signs up via Supabase Auth
 -- ---------------------------------------------------------------------------
@@ -245,6 +261,21 @@ create policy "payments_insert_own" on public.payments
 drop policy if exists "payments_admin_manage" on public.payments;
 create policy "payments_admin_manage" on public.payments
   for all using (public.is_admin()) with check (public.is_admin());
+
+-- payment_collections: parents read their own; only the service role writes
+alter table public.payment_collections enable row level security;
+
+drop policy if exists "collections_select_own_or_admin" on public.payment_collections;
+create policy "collections_select_own_or_admin" on public.payment_collections
+  for select using (
+    public.is_admin()
+    or exists (
+      select 1 from public.payments pay
+      join public.registrations r on r.id = pay.registration_id
+      join public.players p on p.id = r.player_id
+      where pay.id = payment_collections.payment_id and p.parent_id = auth.uid()
+    )
+  );
 
 -- ---------------------------------------------------------------------------
 -- Seed teams + fee plans (edit freely, or manage from /admin/teams once

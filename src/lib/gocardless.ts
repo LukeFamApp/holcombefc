@@ -99,8 +99,8 @@ export async function createPayment(options: {
   amountPence: number;
   description: string;
   idempotencyKey: string;
-}): Promise<{ id: string }> {
-  const data = await gc<{ payments: { id: string } }>("/payments", {
+}): Promise<GcPaymentDetail> {
+  const data = await gc<{ payments: GcPaymentDetail }>("/payments", {
     method: "POST",
     idempotencyKey: options.idempotencyKey,
     body: {
@@ -112,6 +112,19 @@ export async function createPayment(options: {
       },
     },
   });
+  return data.payments;
+}
+
+export async function getPayment(id: string): Promise<
+  GcPaymentDetail & {
+    links: { mandate?: string; subscription?: string };
+  }
+> {
+  const data = await gc<{
+    payments: GcPaymentDetail & {
+      links: { mandate?: string; subscription?: string };
+    };
+  }>(`/payments/${id}`);
   return data.payments;
 }
 
