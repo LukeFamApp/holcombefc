@@ -4,18 +4,20 @@ import { createClient } from "@/lib/supabase/server";
 import { GlassCard } from "@/components/ui";
 import { CURRENT_SEASON } from "@/lib/config";
 
+const CONTACT_EMAIL = "holcombeyfc@gmail.com";
+const FACEBOOK_URL = "https://www.facebook.com/HolcombeYFC";
+
 type Team = {
   id: string;
   name: string;
   age_group: string;
-  fee_plans: { id: string; name: string; annual_price_pence: number }[];
 };
 
 export default async function HomePage() {
   const supabase = await createClient();
   const { data: teams } = await supabase
     .from("teams")
-    .select("id, name, age_group, fee_plans ( id, name, annual_price_pence )")
+    .select("id, name, age_group")
     .order("age_group")
     .returns<Team[]>();
 
@@ -61,8 +63,7 @@ export default async function HomePage() {
           </h1>
           <p className="mt-5 max-w-xl text-balance text-white/60">
             Register your child for the {CURRENT_SEASON} season in a couple
-            of minutes. One form, one place to keep track of your player and
-            your club fees.
+            of minutes. One form, one place to keep track of your player.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link
@@ -77,6 +78,12 @@ export default async function HomePage() {
             >
               I already have an account
             </Link>
+            <a
+              href={`mailto:${CONTACT_EMAIL}`}
+              className="rounded-lg border border-white/15 px-6 py-3 font-semibold text-white transition-colors hover:bg-white/10"
+            >
+              Contact us
+            </a>
           </div>
         </div>
       </section>
@@ -93,12 +100,12 @@ export default async function HomePage() {
             {
               step: "02",
               title: "Add your player",
-              body: "Name, date of birth, team and emergency contact — that's it.",
+              body: "Name, date of birth, team and emergency contact details.",
             },
             {
               step: "03",
               title: "We take it from there",
-              body: "Your registration lands with the club committee, and we'll be in touch about fees.",
+              body: "Your registration is confirmed straight away, and you're all set for the season.",
             },
           ].map((s) => (
             <GlassCard key={s.step} className="p-6">
@@ -112,44 +119,35 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Teams + fees */}
+      {/* New players welcome */}
       {teams && teams.length > 0 && (
         <section className="px-6 pb-24">
-          <div className="mx-auto max-w-5xl">
-            <h2 className="font-(family-name:--font-display) text-3xl text-white mb-2 text-center">
-              Our Teams
-            </h2>
-            <p className="text-center text-white/50 text-sm mb-8">
-              Membership fees for the {CURRENT_SEASON} season
-            </p>
-            <div className="flex flex-wrap justify-center gap-4">
-              {teams.map((t) => (
-                <GlassCard key={t.id} className="min-w-[240px] p-5">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-blue" />
-                    <h3 className="font-semibold text-white">{t.name}</h3>
-                  </div>
-                  <p className="mt-0.5 text-xs text-white/40">{t.age_group}</p>
-                  <ul className="mt-3 flex flex-col gap-1.5">
-                    {t.fee_plans.map((p) => (
-                      <li
-                        key={p.id}
-                        className="flex items-center justify-between text-sm text-white/70"
-                      >
-                        <span>{p.name}</span>
-                        <span className="font-(family-name:--font-ui-mono) text-accent">
-                          £{(p.annual_price_pence / 100).toFixed(0)}/yr
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </GlassCard>
-              ))}
-            </div>
-            <p className="mt-6 text-center text-xs text-white/40">
-              Pay annually, or by monthly direct debit over 6 months once
-              online payments go live.
-            </p>
+          <div className="mx-auto max-w-3xl">
+            <GlassCard strong className="p-8 text-center">
+              <h2 className="font-(family-name:--font-display) text-3xl text-white mb-2">
+                New players welcome
+              </h2>
+              <p className="text-white/60 max-w-lg mx-auto">
+                Please{" "}
+                <a
+                  href={`mailto:${CONTACT_EMAIL}`}
+                  className="text-accent hover:underline"
+                >
+                  contact us
+                </a>{" "}
+                for details — we have spaces in the following teams:
+              </p>
+              <div className="mt-6 flex flex-wrap justify-center gap-3">
+                {teams.map((t) => (
+                  <span
+                    key={t.id}
+                    className="glass rounded-full px-4 py-2 text-sm font-(family-name:--font-ui-mono) text-white/75"
+                  >
+                    {t.name} ({t.age_group})
+                  </span>
+                ))}
+              </div>
+            </GlassCard>
           </div>
         </section>
       )}
@@ -164,6 +162,23 @@ export default async function HomePage() {
             height={40}
             className="h-10 w-10 opacity-80"
           />
+          <div className="flex items-center gap-4 font-(family-name:--font-ui-mono) text-xs uppercase tracking-wide">
+            <a
+              href={`mailto:${CONTACT_EMAIL}`}
+              className="text-white/50 hover:text-accent transition-colors"
+            >
+              Contact us
+            </a>
+            <span className="text-white/20">·</span>
+            <a
+              href={FACEBOOK_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-white/50 hover:text-accent transition-colors"
+            >
+              Facebook
+            </a>
+          </div>
           <p>
             &copy; {new Date().getFullYear()} Holcombe FC. All rights
             reserved.
