@@ -266,6 +266,32 @@ export default async function DashboardPage({
           </div>
         </GlassCard>
       </section>
+
+      {/* Key contacts widget */}
+      <section>
+        <h2 className="font-(family-name:--font-ui-mono) text-xs uppercase tracking-[0.2em] text-white/40 mb-3">
+          Key contacts
+        </h2>
+        <GlassCard className="p-5">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <h3 className="font-semibold text-white">
+                Welfare, the club, and who&apos;s who
+              </h3>
+              <p className="text-sm text-white/50 mt-1 max-w-md">
+                Direct emails for welfare and general enquiries, plus the
+                committee you&apos;ll be dealing with.
+              </p>
+            </div>
+            <Link
+              href="/contacts"
+              className="rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10 transition-colors"
+            >
+              View contacts
+            </Link>
+          </div>
+        </GlassCard>
+      </section>
     </div>
   );
 }
