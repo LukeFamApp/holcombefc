@@ -34,9 +34,11 @@ export default async function DashboardPage({
     payment?: string;
     tour?: string;
     removalRequested?: string;
+    passwordReset?: string;
   }>;
 }) {
-  const { registered, payment, tour, removalRequested } = await searchParams;
+  const { registered, payment, tour, removalRequested, passwordReset } =
+    await searchParams;
   const supabase = await createClient();
 
   const {
@@ -90,6 +92,11 @@ export default async function DashboardPage({
         <p className="rounded-lg border border-blue/40 bg-blue/15 px-3.5 py-2.5 text-sm text-blue-200">
           Your removal request has been sent to the club committee for
           review.
+        </p>
+      )}
+      {passwordReset && (
+        <p className="rounded-lg border border-accent/30 bg-accent/10 px-3.5 py-2.5 text-sm text-accent">
+          Your password has been updated.
         </p>
       )}
 

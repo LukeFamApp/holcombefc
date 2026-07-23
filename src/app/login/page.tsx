@@ -22,8 +22,16 @@ export default async function LoginPage({
           <input type="hidden" name="redirect" value={redirect ?? "/dashboard"} />
           <ErrorNote message={error} />
           <Field label="Email" name="email" type="email" required />
-          <Field label="Password" name="password" type="password" required />
-          <Button className="mt-2 w-full">Log in</Button>
+          <div className="flex flex-col gap-1.5">
+            <Field label="Password" name="password" type="password" required />
+            <Link
+              href="/forgot-password"
+              className="self-end text-xs text-white/45 hover:text-accent transition-colors"
+            >
+              Forgot password?
+            </Link>
+          </div>
+          <Button className="mt-1 w-full">Log in</Button>
         </form>
         <p className="mt-6 text-center text-sm text-white/50">
           No account yet?{" "}
