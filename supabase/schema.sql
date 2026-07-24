@@ -172,6 +172,33 @@ as $$
   select coalesce((select is_admin from public.parents where id = auth.uid()), false);
 $$;
 
+-- Parents can edit their player's profile, but consent records and team
+-- assignment must stay locked to them — team moves go through the admin
+-- "Move" control, and photo/code-of-conduct consent is an audit record of
+-- what was agreed at registration. This trigger silently preserves those
+-- columns on any update made by a non-admin, so it's enforced at the
+-- database level, not just hidden in the UI.
+create or replace function public.protect_locked_player_fields()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_admin() then
+    new.team_id := old.team_id;
+    new.photo_consent := old.photo_consent;
+    new.coc_accepted_at := old.coc_accepted_at;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists protect_locked_player_fields on public.players;
+create trigger protect_locked_player_fields
+  before update on public.players
+  for each row execute procedure public.protect_locked_player_fields();
+
 -- ---------------------------------------------------------------------------
 -- Row Level Security
 -- ---------------------------------------------------------------------------

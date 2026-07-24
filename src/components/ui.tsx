@@ -56,11 +56,13 @@ export function TextAreaField({
   name,
   placeholder,
   required = false,
+  defaultValue,
 }: {
   label: string;
   name: string;
   placeholder?: string;
   required?: boolean;
+  defaultValue?: string;
 }) {
   return (
     <label className="flex flex-col gap-1.5 text-sm">
@@ -71,6 +73,7 @@ export function TextAreaField({
         name={name}
         required={required}
         placeholder={placeholder}
+        defaultValue={defaultValue}
         rows={3}
         className="rounded-lg bg-black/30 border border-white/10 px-3.5 py-2.5 text-white placeholder-white/30 outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors resize-none"
       />

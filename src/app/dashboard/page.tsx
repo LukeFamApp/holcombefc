@@ -35,10 +35,17 @@ export default async function DashboardPage({
     tour?: string;
     removalRequested?: string;
     passwordReset?: string;
+    profileUpdated?: string;
   }>;
 }) {
-  const { registered, payment, tour, removalRequested, passwordReset } =
-    await searchParams;
+  const {
+    registered,
+    payment,
+    tour,
+    removalRequested,
+    passwordReset,
+    profileUpdated,
+  } = await searchParams;
   const supabase = await createClient();
 
   const {
@@ -99,6 +106,11 @@ export default async function DashboardPage({
           Your password has been updated.
         </p>
       )}
+      {profileUpdated && (
+        <p className="rounded-lg border border-accent/30 bg-accent/10 px-3.5 py-2.5 text-sm text-accent">
+          Profile updated.
+        </p>
+      )}
 
       {/* Quick tip pointing new parents at the policies section */}
       {showPoliciesTour && (
@@ -145,8 +157,16 @@ export default async function DashboardPage({
             );
             return (
               <GlassCard key={p.id} className="p-5">
-                <h3 className="font-semibold text-white text-lg">
-                  {p.first_name} {p.last_name}
+                <h3 className="font-semibold text-lg">
+                  <Link
+                    href={`/players/${p.id}/edit`}
+                    className="text-white hover:text-accent transition-colors"
+                  >
+                    {p.first_name} {p.last_name}
+                    <span className="ml-1.5 text-xs text-white/35 font-normal">
+                      Edit →
+                    </span>
+                  </Link>
                 </h3>
                 <p className="text-xs text-white/50 mt-0.5">
                   {p.teams ? `${p.teams.name} · ` : ""}DOB {p.date_of_birth}

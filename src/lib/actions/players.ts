@@ -208,6 +208,88 @@ export async function addPlayer(formData: FormData) {
   redirect(authorisationUrl);
 }
 
+export async function updatePlayerProfile(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    redirect("/login?redirect=/dashboard");
+  }
+
+  const playerId = text(formData, "playerId");
+  if (!playerId) {
+    redirect("/dashboard");
+  }
+
+  const firstName = text(formData, "firstName");
+  const lastName = text(formData, "lastName");
+  const dateOfBirth = text(formData, "dateOfBirth");
+  const addressLine1 = text(formData, "addressLine1");
+  const addressLine2 = optional(formData, "addressLine2");
+  const addressTown = text(formData, "addressTown");
+  const addressPostcode = text(formData, "addressPostcode");
+  const emergencyContactName = text(formData, "emergencyContactName");
+  const emergencyContactPhone = text(formData, "emergencyContactPhone");
+  const medicalConditions = optional(formData, "medicalConditions");
+  const allergies = optional(formData, "allergies");
+  const medications = optional(formData, "medications");
+  const heartConditions = optional(formData, "heartConditions");
+
+  if (
+    !firstName ||
+    !lastName ||
+    !dateOfBirth ||
+    !addressLine1 ||
+    !addressTown ||
+    !addressPostcode ||
+    !emergencyContactName ||
+    !emergencyContactPhone
+  ) {
+    redirect(
+      `/players/${playerId}/edit?error=${encodeURIComponent(
+        "Please fill in all required fields.",
+      )}`,
+    );
+  }
+
+  // Team assignment, photo consent and codes-of-conduct acceptance are
+  // deliberately left out here — a database trigger locks those columns
+  // against non-admin updates regardless, but there's no reason to even
+  // attempt sending them from an edit form parents use.
+  const { data: updated, error } = await supabase
+    .from("players")
+    .update({
+      first_name: firstName,
+      last_name: lastName,
+      date_of_birth: dateOfBirth,
+      address_line1: addressLine1,
+      address_line2: addressLine2,
+      address_town: addressTown,
+      address_postcode: addressPostcode,
+      emergency_contact_name: emergencyContactName,
+      emergency_contact_phone: emergencyContactPhone,
+      medical_conditions: medicalConditions,
+      allergies,
+      medications,
+      heart_conditions: heartConditions,
+    })
+    .eq("id", playerId)
+    .select("id")
+    .single();
+
+  if (error || !updated) {
+    redirect(
+      `/players/${playerId}/edit?error=${encodeURIComponent(
+        "Could not update — please try again.",
+      )}`,
+    );
+  }
+
+  revalidatePath("/dashboard");
+  redirect("/dashboard?profileUpdated=1");
+}
+
 export async function requestPlayerRemoval(formData: FormData) {
   const supabase = await createClient();
   const {
