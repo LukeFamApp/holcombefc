@@ -312,6 +312,33 @@ export default async function DashboardPage({
           </div>
         </GlassCard>
       </section>
+
+      {/* FA account widget */}
+      <section>
+        <h2 className="font-(family-name:--font-ui-mono) text-xs uppercase tracking-[0.2em] text-white/40 mb-3">
+          FA player profile
+        </h2>
+        <GlassCard className="p-5">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <h3 className="font-semibold text-white">Update on TheFA.com</h3>
+              <p className="text-sm text-white/50 mt-1 max-w-md">
+                Player photos and other FA profile details are managed
+                through the official FA account portal, separately from this
+                site.
+              </p>
+            </div>
+            <a
+              href="https://www.thefa.com/account/myaccount"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10 transition-colors"
+            >
+              Manage on TheFA.com
+            </a>
+          </div>
+        </GlassCard>
+      </section>
     </div>
   );
 }
