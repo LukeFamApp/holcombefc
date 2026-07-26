@@ -24,6 +24,12 @@ export default async function AdminLayout({
           >
             Teams &amp; Fees
           </Link>
+          <Link
+            href="/admin/payments"
+            className="px-4 py-3 text-white/70 hover:text-white transition-colors"
+          >
+            Payments
+          </Link>
         </nav>
       </div>
       {children}

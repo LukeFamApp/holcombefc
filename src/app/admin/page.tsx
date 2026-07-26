@@ -3,6 +3,7 @@ import { GlassCard, StatusPill } from "@/components/ui";
 import { CURRENT_SEASON } from "@/lib/config";
 import { movePlayerToTeam } from "@/lib/actions/teams";
 import { resolvePlayerRemoval } from "@/lib/actions/removals";
+import { AdminTeamFilter } from "@/components/AdminTeamFilter";
 
 type RegistrationRow = {
   id: string;
@@ -44,7 +45,12 @@ type RemovalRequestRow = {
   } | null;
 };
 
-export default async function AdminPage() {
+export default async function AdminPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ team?: string }>;
+}) {
+  const { team: activeTeamId } = await searchParams;
   const supabase = await createClient();
 
   const [{ data: registrations }, { data: allTeams }, { data: removalRequests }] =
@@ -73,8 +79,11 @@ export default async function AdminPage() {
         .returns<RemovalRequestRow[]>(),
     ]);
 
-  const rows = registrations ?? [];
   const teams = allTeams ?? [];
+  const allRows = registrations ?? [];
+  const rows = activeTeamId
+    ? allRows.filter((r) => r.players?.teams?.id === activeTeamId)
+    : allRows;
   const pendingRemovals = removalRequests ?? [];
 
   return (
@@ -88,6 +97,12 @@ export default async function AdminPage() {
           {CURRENT_SEASON}
         </p>
       </div>
+
+      <AdminTeamFilter
+        teams={teams}
+        activeTeamId={activeTeamId}
+        basePath="/admin"
+      />
 
       {pendingRemovals.length > 0 && (
         <GlassCard strong className="p-5">

@@ -29,7 +29,8 @@ export type FeePlanInfo = {
 };
 
 // GoCardless payment states where the money arrived…
-const COLLECTED = ["confirmed", "paid_out"];
+export const COLLECTED_STATUSES = ["confirmed", "paid_out"];
+const COLLECTED = COLLECTED_STATUSES;
 // …and where it definitely isn't coming (anything else is in flight).
 const DEAD = [
   "failed",
