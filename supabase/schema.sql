@@ -88,6 +88,10 @@ create table if not exists public.payments (
   -- collections underway; paid = fully collected
   status                        text not null default 'pending' check (status in ('pending', 'processing', 'paid', 'failed', 'not_required', 'cancelled')),
   method                        text check (method is null or method in ('full', 'monthly')),
+  -- true when this amount already has the 10% sibling discount baked in —
+  -- stored explicitly rather than inferred by comparing to the fee plan's
+  -- current price, so it stays accurate even if that price changes later
+  sibling_discount_applied      boolean not null default false,
   gocardless_mandate_id         text,
   gocardless_billing_request_id text,
   gocardless_payment_id         text,

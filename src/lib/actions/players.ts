@@ -3,11 +3,35 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { CURRENT_SEASON } from "@/lib/config";
+import { CURRENT_SEASON, applySiblingDiscount } from "@/lib/config";
 import {
   createBillingRequestFlowForPayment,
   friendlyGoCardlessError,
 } from "@/lib/payments";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+// True if any of the given player ids already has an active registration
+// for the current season. Takes an explicit, pre-captured id list (rather
+// than re-querying "all of this parent's players" at call time) so it can't
+// accidentally include a child who was only just inserted — e.g. if called
+// after the new player/registration already exist, they'd count as their
+// own sibling. Recomputed here server-side (never trusted from the client)
+// since it drives real money.
+async function hasActiveRegistrationAmong(
+  supabase: SupabaseClient,
+  playerIds: string[],
+): Promise<boolean> {
+  if (playerIds.length === 0) return false;
+
+  const { count } = await supabase
+    .from("registrations")
+    .select("id", { count: "exact", head: true })
+    .eq("season", CURRENT_SEASON)
+    .eq("status", "active")
+    .in("player_id", playerIds);
+
+  return (count ?? 0) > 0;
+}
 
 function text(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
@@ -26,6 +50,15 @@ export async function addPlayer(formData: FormData) {
   if (!user) {
     redirect("/login?redirect=/register");
   }
+
+  // Captured now, before this child (or their registration) exists, so the
+  // sibling-discount check below can never count the new child as their
+  // own sibling.
+  const { data: priorPlayers } = await supabase
+    .from("players")
+    .select("id")
+    .eq("parent_id", user.id);
+  const priorPlayerIds = (priorPlayers ?? []).map((p) => p.id);
 
   const firstName = text(formData, "firstName");
   const lastName = text(formData, "lastName");
@@ -165,11 +198,21 @@ export async function addPlayer(formData: FormData) {
     );
   }
 
+  const siblingDiscountEligible = await hasActiveRegistrationAmong(
+    supabase,
+    priorPlayerIds,
+  );
+  const amountPence = applySiblingDiscount(
+    feePlan.annual_price_pence,
+    siblingDiscountEligible,
+  );
+
   const { data: paymentRow, error: paymentError } = await supabase
     .from("payments")
     .insert({
       registration_id: registration.id,
-      amount_pence: feePlan.annual_price_pence,
+      amount_pence: amountPence,
+      sibling_discount_applied: siblingDiscountEligible,
       status: "pending",
     })
     .select("id")

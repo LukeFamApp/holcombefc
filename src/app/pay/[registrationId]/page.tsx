@@ -14,7 +14,13 @@ type Row = {
     instalment_count: number | null;
   } | null;
   payments:
-    | { id: string; status: string; gocardless_mandate_id: string | null }[]
+    | {
+        id: string;
+        status: string;
+        amount_pence: number | null;
+        sibling_discount_applied: boolean;
+        gocardless_mandate_id: string | null;
+      }[]
     | null;
   players: { first_name: string; last_name: string } | null;
 };
@@ -45,7 +51,7 @@ export default async function PayPage({
     .select(
       `id, season,
        fee_plans ( name, annual_price_pence, instalment_count ),
-       payments ( id, status, gocardless_mandate_id ),
+       payments ( id, status, amount_pence, sibling_discount_applied, gocardless_mandate_id ),
        players ( first_name, last_name )`,
     )
     .eq("id", registrationId)
@@ -63,7 +69,10 @@ export default async function PayPage({
 
   const plan = registration.fee_plans;
   const player = registration.players;
-  const total = plan.annual_price_pence;
+  // The price locked in at registration (which may include a sibling
+  // discount) is authoritative — not necessarily what the fee plan lists now.
+  const total = paymentRecord?.amount_pence ?? plan.annual_price_pence;
+  const siblingDiscountApplied = paymentRecord?.sibling_discount_applied ?? false;
 
   // Balance-aware: anything already collected on a previous mandate comes
   // off what a restarted plan will charge.
@@ -115,6 +124,11 @@ export default async function PayPage({
       </div>
 
       <ErrorNote message={error} />
+      {siblingDiscountApplied && (
+        <p className="rounded-lg border border-accent/30 bg-accent/10 px-3.5 py-2.5 text-sm text-accent">
+          10% sibling discount applied — reflected in the price below.
+        </p>
+      )}
       {cancelled && (
         <p className="rounded-lg border border-blue/40 bg-blue/15 px-3.5 py-2.5 text-sm text-blue-200">
           No problem — you can set up your Direct Debit whenever you&apos;re

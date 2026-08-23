@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { addPlayer } from "@/lib/actions/players";
+import { applySiblingDiscount } from "@/lib/config";
 
 type FeePlan = {
   id: string;
@@ -108,7 +109,15 @@ function FinalStepButtons({
   );
 }
 
-export default function AddPlayerForm({ teams }: { teams: Team[] }) {
+export default function AddPlayerForm({
+  teams,
+  siblingDiscountEligible = false,
+}: {
+  teams: Team[];
+  siblingDiscountEligible?: boolean;
+}) {
+  const discounted = (pence: number) =>
+    applySiblingDiscount(pence, siblingDiscountEligible);
   const [step, setStep] = useState(0);
   const [stepError, setStepError] = useState("");
 
@@ -341,18 +350,22 @@ export default function AddPlayerForm({ teams }: { teams: Team[] }) {
                 <option value="" disabled>
                   {teamId ? "Select…" : "Choose a team first"}
                 </option>
-                {feePlans.map((p) => (
-                  <option key={p.id} value={p.id} className="bg-[#0a0f1e]">
-                    {p.name} — £{(p.annual_price_pence / 100).toFixed(0)}/yr
-                    {p.instalment_count
-                      ? ` (or ${p.instalment_count} × £${(
-                          p.annual_price_pence /
-                          p.instalment_count /
-                          100
-                        ).toFixed(0)}/mo)`
-                      : ""}
-                  </option>
-                ))}
+                {feePlans.map((p) => {
+                  const price = discounted(p.annual_price_pence);
+                  return (
+                    <option key={p.id} value={p.id} className="bg-[#0a0f1e]">
+                      {p.name} — £{(price / 100).toFixed(0)}/yr
+                      {siblingDiscountEligible ? " (sibling discount)" : ""}
+                      {p.instalment_count
+                        ? ` (or ${p.instalment_count} × £${(
+                            price /
+                            p.instalment_count /
+                            100
+                          ).toFixed(0)}/mo)`
+                        : ""}
+                    </option>
+                  );
+                })}
               </select>
             </L>
           </div>
@@ -545,7 +558,13 @@ export default function AddPlayerForm({ teams }: { teams: Team[] }) {
               <p className="text-sm text-white/55">
                 {selectedPlan.name} for{" "}
                 {firstName.trim() || "your child"} —{" "}
-                {pounds(selectedPlan.annual_price_pence)}/yr.
+                {pounds(discounted(selectedPlan.annual_price_pence))}/yr.
+              </p>
+            )}
+            {siblingDiscountEligible && (
+              <p className="text-xs text-accent">
+                10% sibling discount applied — prices below already reflect
+                it.
               </p>
             )}
             <div className="grid gap-3 sm:grid-cols-2">
@@ -560,7 +579,7 @@ export default function AddPlayerForm({ teams }: { teams: Team[] }) {
               >
                 <span className={labelClass}>Pay in full</span>
                 <p className="mt-1 font-(family-name:--font-display) text-2xl text-white">
-                  {selectedPlan ? pounds(selectedPlan.annual_price_pence) : "—"}
+                  {selectedPlan ? pounds(discounted(selectedPlan.annual_price_pence)) : "—"}
                 </p>
                 <p className="mt-1 text-xs text-white/50">
                   One Direct Debit collection.
@@ -579,8 +598,10 @@ export default function AddPlayerForm({ teams }: { teams: Team[] }) {
                   <span className={labelClass}>Pay monthly</span>
                   <p className="mt-1 font-(family-name:--font-display) text-2xl text-white">
                     {pounds(
-                      selectedPlan.annual_price_pence /
-                        selectedPlan.instalment_count,
+                      Math.round(
+                        discounted(selectedPlan.annual_price_pence) /
+                          selectedPlan.instalment_count,
+                      ),
                     )}
                     <span className="text-sm text-white/50">
                       {" "}

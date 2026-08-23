@@ -31,7 +31,14 @@ type RegistrationRow = {
     } | null;
   } | null;
   fee_plans: { name: string; annual_price_pence: number } | null;
-  payments: { status: string; method: string | null }[] | null;
+  payments:
+    | {
+        status: string;
+        method: string | null;
+        amount_pence: number | null;
+        sibling_discount_applied: boolean;
+      }[]
+    | null;
 };
 
 type RemovalRequestRow = {
@@ -63,7 +70,7 @@ export default async function AdminPage({
                      medical_conditions, allergies, medications, heart_conditions, photo_consent,
                      teams ( id, name, age_group ), parents ( first_name, last_name, email, phone ) ),
            fee_plans ( name, annual_price_pence ),
-           payments ( status, method )`,
+           payments ( status, method, amount_pence, sibling_discount_applied )`,
         )
         .order("created_at", { ascending: false })
         .returns<RegistrationRow[]>(),
@@ -229,11 +236,23 @@ export default async function AdminPage({
                   </div>
                 </td>
                 <td className="px-4 py-3 text-white/80">
-                  {r.fee_plans
-                    ? `${r.fee_plans.name} (£${(
-                        r.fee_plans.annual_price_pence / 100
-                      ).toFixed(2)}/yr)`
-                    : "—"}
+                  {r.fee_plans ? (
+                    <>
+                      {r.fee_plans.name} (£
+                      {(
+                        (r.payments?.[0]?.amount_pence ??
+                          r.fee_plans.annual_price_pence) / 100
+                      ).toFixed(2)}
+                      /yr)
+                      {r.payments?.[0]?.sibling_discount_applied && (
+                        <div className="text-xs text-accent">
+                          10% sibling discount
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    "—"
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   <StatusPill status={r.status} />

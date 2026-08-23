@@ -192,7 +192,9 @@ export async function fulfilPayment(
   }
 
   const admin = createAdminClient();
-  const total = feePlan.annual_price_pence;
+  // The price agreed at registration (which may include a sibling discount)
+  // is authoritative — not whatever the fee plan happens to cost now.
+  const total = payment.amount_pence ?? feePlan.annual_price_pence;
 
   // Bring the ledger up to date with the previous mandate (if any) so the
   // outstanding balance accounts for everything already collected.

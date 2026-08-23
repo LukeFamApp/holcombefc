@@ -10,7 +10,14 @@ type RegistrationRow = {
   season: string;
   status: string;
   fee_plans: { name: string; annual_price_pence: number } | null;
-  payments: { status: string; method: string | null }[] | null;
+  payments:
+    | {
+        status: string;
+        method: string | null;
+        amount_pence: number | null;
+        sibling_discount_applied: boolean;
+      }[]
+    | null;
 };
 
 type RemovalRequestRow = { status: string };
@@ -63,7 +70,7 @@ export default async function DashboardPage({
       .select(
         `id, first_name, last_name, date_of_birth, photo_consent,
          teams ( name, age_group ),
-         registrations ( id, season, status, fee_plans ( name, annual_price_pence ), payments ( status, method ) ),
+         registrations ( id, season, status, fee_plans ( name, annual_price_pence ), payments ( status, method, amount_pence, sibling_discount_applied ) ),
          player_removal_requests ( status )`,
       )
       .order("created_at", { ascending: false })
@@ -174,7 +181,14 @@ export default async function DashboardPage({
                 {reg?.fee_plans && (
                   <p className="text-xs text-white/50 mt-0.5">
                     {reg.fee_plans.name} · £
-                    {(reg.fee_plans.annual_price_pence / 100).toFixed(0)}/yr
+                    {(
+                      (reg.payments?.[0]?.amount_pence ??
+                        reg.fee_plans.annual_price_pence) / 100
+                    ).toFixed(0)}
+                    /yr
+                    {reg.payments?.[0]?.sibling_discount_applied && (
+                      <span className="text-accent"> · sibling discount</span>
+                    )}
                   </p>
                 )}
                 <div className="mt-3 flex flex-wrap gap-2">

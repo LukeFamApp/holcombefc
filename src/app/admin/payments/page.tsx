@@ -22,7 +22,13 @@ type PaymentReportRow = {
   } | null;
   fee_plans: { name: string; annual_price_pence: number } | null;
   payments:
-    | { id: string; status: string; amount_pence: number | null; method: string | null }[]
+    | {
+        id: string;
+        status: string;
+        amount_pence: number | null;
+        method: string | null;
+        sibling_discount_applied: boolean;
+      }[]
     | null;
 };
 
@@ -100,7 +106,7 @@ export default async function AdminPaymentsPage({
                      teams ( id, name, age_group ),
                      parents ( first_name, last_name, email, phone ) ),
            fee_plans ( name, annual_price_pence ),
-           payments ( id, status, amount_pence, method )`,
+           payments ( id, status, amount_pence, method, sibling_discount_applied )`,
         )
         .eq("season", CURRENT_SEASON)
         .order("created_at", { ascending: false })
@@ -288,6 +294,11 @@ export default async function AdminPaymentsPage({
                     </td>
                     <td className="px-4 py-3 text-white/80">
                       {r.fee_plans?.name ?? "—"}
+                      {payment?.sibling_discount_applied && (
+                        <div className="text-xs text-accent">
+                          10% sibling discount
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <StatusPill status={status} kind="payment" />
