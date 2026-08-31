@@ -1,6 +1,23 @@
 import { NextResponse } from "next/server";
-import { type EmailOtpType } from "@supabase/supabase-js";
+import { type EmailOtpType, type SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+
+// public.parents.email is a separate copy of the address (used for display
+// in admin and for mailto: chase links) that only ever gets set at signup.
+// If this verification just confirmed an email change, keep it in step —
+// harmless no-op for every other link type (signup/recovery), since the
+// address hasn't changed in those cases.
+async function syncParentEmail(supabase: SupabaseClient) {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user?.email) {
+    await supabase
+      .from("parents")
+      .update({ email: user.email })
+      .eq("id", user.id);
+  }
+}
 
 // Handles both Supabase auth link styles:
 // - PKCE flow: ?code=...
@@ -17,6 +34,7 @@ export async function GET(request: Request) {
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
+      await syncParentEmail(supabase);
       return NextResponse.redirect(`${origin}${redirect}`);
     }
   }
@@ -27,6 +45,7 @@ export async function GET(request: Request) {
       type,
     });
     if (!error) {
+      await syncParentEmail(supabase);
       return NextResponse.redirect(`${origin}${redirect}`);
     }
   }

@@ -25,20 +25,32 @@ export async function requestPasswordReset(formData: FormData) {
   redirect("/forgot-password/check-email");
 }
 
+// Shared by the recovery-link flow (/reset-password, no prior session
+// needed beyond the one the link itself grants) and the account page
+// (/account, changing your password while already logged in) — both just
+// need *a* valid session, however it was established.
 export async function updatePassword(formData: FormData) {
   const password = String(formData.get("password") ?? "");
   const confirmPassword = String(formData.get("confirmPassword") ?? "");
+  // Two separate targets, not one: a recovery-link user should land on
+  // /dashboard afterward, but someone changing their password from
+  // /account should stay on /account — while both send errors back to
+  // wherever the form actually was.
+  const errorReturnTo = String(formData.get("errorReturnTo") ?? "/reset-password");
+  const successReturnTo = String(
+    formData.get("successReturnTo") ?? "/dashboard?passwordReset=1",
+  );
 
   if (password.length < 8) {
     redirect(
-      `/reset-password?error=${encodeURIComponent(
+      `${errorReturnTo}?error=${encodeURIComponent(
         "Password must be at least 8 characters.",
       )}`,
     );
   }
   if (password !== confirmPassword) {
     redirect(
-      `/reset-password?error=${encodeURIComponent(
+      `${errorReturnTo}?error=${encodeURIComponent(
         "The two passwords don't match — please retype them.",
       )}`,
     );
@@ -59,8 +71,8 @@ export async function updatePassword(formData: FormData) {
 
   const { error } = await supabase.auth.updateUser({ password });
   if (error) {
-    redirect(`/reset-password?error=${encodeURIComponent(error.message)}`);
+    redirect(`${errorReturnTo}?error=${encodeURIComponent(error.message)}`);
   }
 
-  redirect("/dashboard?passwordReset=1");
+  redirect(successReturnTo);
 }
