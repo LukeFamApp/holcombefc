@@ -49,3 +49,5 @@ Once you're an admin, manage teams and fee plans at `/admin/teams` instead of th
 - Monthly-over-6 payment schedule selection (will land alongside GoCardless)
 - Password reset flow
 - Editing/removing a registered player or team
+
+- 
