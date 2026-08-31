@@ -73,6 +73,12 @@ export default async function DashboardPage({
          registrations ( id, season, status, fee_plans ( name, annual_price_pence ), payments ( status, method, amount_pence, sibling_discount_applied ) ),
          player_removal_requests ( status )`,
       )
+      // Explicit filter, not just RLS: an admin's OWN dashboard must still
+      // show only their own children, not every family's — RLS alone would
+      // let admin visibility leak into this personal view via its
+      // "parent_id = you OR is_admin()" policy (correct for /admin, wrong
+      // here).
+      .eq("parent_id", user.id)
       .order("created_at", { ascending: false })
       .returns<PlayerRow[]>(),
   ]);
