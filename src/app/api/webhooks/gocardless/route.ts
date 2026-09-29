@@ -4,9 +4,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getPayment } from "@/lib/gocardless";
 import {
   fulfilPayment,
+  fulfilFine,
   upsertCollections,
   settleStatusFromLedger,
+  COLLECTED_STATUSES,
+  DEAD_STATUSES,
   type PaymentRow,
+  type FineRow,
 } from "@/lib/payments";
 
 type GcEvent = {
@@ -22,6 +26,9 @@ type GcEvent = {
 
 const PAYMENT_COLUMNS =
   "id, registration_id, amount_pence, status, method, gocardless_billing_request_id, gocardless_mandate_id, gocardless_payment_id, gocardless_subscription_id";
+
+const FINE_COLUMNS =
+  "id, player_id, card_type, amount_pence, status, gocardless_billing_request_id, gocardless_mandate_id, gocardless_payment_id";
 
 export async function POST(request: Request) {
   const secret = process.env.GOCARDLESS_WEBHOOK_SECRET;
@@ -103,6 +110,22 @@ export async function POST(request: Request) {
               .eq("id", paymentRow.id);
           }
         }
+
+        // A GoCardless payment belongs to either a club-fee payment or a
+        // fine, never both — cheap to just check both.
+        const { data: fineRow } = await admin
+          .from("fines")
+          .select(FINE_COLUMNS)
+          .eq("gocardless_payment_id", gcPayment.id)
+          .maybeSingle<FineRow>();
+
+        if (fineRow && fineRow.status !== "paid") {
+          if (COLLECTED_STATUSES.includes(gcPayment.status)) {
+            await admin.from("fines").update({ status: "paid" }).eq("id", fineRow.id);
+          } else if (DEAD_STATUSES.includes(gcPayment.status)) {
+            await admin.from("fines").update({ status: "failed" }).eq("id", fineRow.id);
+          }
+        }
       }
 
       if (event.resource_type === "subscriptions" && event.links.subscription) {
@@ -136,6 +159,11 @@ export async function POST(request: Request) {
             .update({ status: "cancelled" })
             .eq("gocardless_mandate_id", event.links.mandate)
             .not("status", "in", '("paid")');
+          await admin
+            .from("fines")
+            .update({ status: "cancelled" })
+            .eq("gocardless_mandate_id", event.links.mandate)
+            .not("status", "in", '("paid")');
         }
       }
 
@@ -145,12 +173,15 @@ export async function POST(request: Request) {
         event.links.billing_request
       ) {
         // Safety net: parent authorised the mandate but never returned to
-        // the site — create the collections from here instead.
+        // the site — create the collections from here instead. A billing
+        // request belongs to either a club-fee payment or a fine, never
+        // both, so a miss here isn't an error — maybeSingle so it doesn't
+        // throw and skip the fine lookup below.
         const { data: payment } = await admin
           .from("payments")
           .select(PAYMENT_COLUMNS)
           .eq("gocardless_billing_request_id", event.links.billing_request)
-          .single<PaymentRow>();
+          .maybeSingle<PaymentRow>();
 
         if (payment) {
           const { data: reg } = await admin
@@ -167,6 +198,15 @@ export async function POST(request: Request) {
           if (reg?.fee_plans) {
             await fulfilPayment(payment, reg.fee_plans);
           }
+        }
+
+        const { data: fine } = await admin
+          .from("fines")
+          .select(FINE_COLUMNS)
+          .eq("gocardless_billing_request_id", event.links.billing_request)
+          .maybeSingle<FineRow>();
+        if (fine) {
+          await fulfilFine(fine);
         }
       }
     } catch {

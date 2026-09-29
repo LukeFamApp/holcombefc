@@ -131,6 +131,23 @@ create table if not exists public.player_removal_requests (
 create index if not exists player_removal_requests_player_id_idx
   on public.player_removal_requests (player_id);
 
+-- Disciplinary fines: parent self-reports a yellow/red card for their own
+-- child and pays it as a one-off Direct Debit, same GoCardless mechanism as
+-- club fees. Not tied to a registration/season — just the player.
+create table if not exists public.fines (
+  id                             uuid primary key default gen_random_uuid(),
+  player_id                      uuid not null references public.players(id) on delete cascade,
+  card_type                      text not null check (card_type in ('yellow', 'red')),
+  amount_pence                   integer not null,
+  status                         text not null default 'pending' check (status in ('pending', 'processing', 'paid', 'failed', 'cancelled')),
+  gocardless_mandate_id          text,
+  gocardless_billing_request_id  text,
+  gocardless_payment_id          text,
+  created_at                     timestamptz not null default now()
+);
+
+create index if not exists fines_player_id_idx on public.fines (player_id);
+
 -- ---------------------------------------------------------------------------
 -- Auto-create a parent row whenever someone signs up via Supabase Auth
 -- ---------------------------------------------------------------------------
@@ -213,6 +230,7 @@ alter table public.fee_plans     enable row level security;
 alter table public.players       enable row level security;
 alter table public.registrations enable row level security;
 alter table public.payments      enable row level security;
+alter table public.fines         enable row level security;
 
 -- parents: a parent can see/update their own row; admins can see everyone
 drop policy if exists "parents_select_own_or_admin" on public.parents;
@@ -315,6 +333,31 @@ create policy "payments_insert_own" on public.payments
 
 drop policy if exists "payments_admin_manage" on public.payments;
 create policy "payments_admin_manage" on public.payments
+  for all using (public.is_admin()) with check (public.is_admin());
+
+-- fines: a parent can view/create fines for their own players; only admins
+-- (or the service role, e.g. the GoCardless webhook) can change status
+drop policy if exists "fines_select_own_or_admin" on public.fines;
+create policy "fines_select_own_or_admin" on public.fines
+  for select using (
+    public.is_admin()
+    or exists (
+      select 1 from public.players p
+      where p.id = fines.player_id and p.parent_id = auth.uid()
+    )
+  );
+
+drop policy if exists "fines_insert_own" on public.fines;
+create policy "fines_insert_own" on public.fines
+  for insert with check (
+    exists (
+      select 1 from public.players p
+      where p.id = fines.player_id and p.parent_id = auth.uid()
+    )
+  );
+
+drop policy if exists "fines_admin_manage" on public.fines;
+create policy "fines_admin_manage" on public.fines
   for all using (public.is_admin()) with check (public.is_admin());
 
 -- payment_collections: parents read their own; only the service role writes

@@ -39,6 +39,7 @@ export default async function DashboardPage({
   searchParams: Promise<{
     registered?: string;
     payment?: string;
+    fine?: string;
     tour?: string;
     removalRequested?: string;
     passwordReset?: string;
@@ -48,6 +49,7 @@ export default async function DashboardPage({
   const {
     registered,
     payment,
+    fine,
     tour,
     removalRequested,
     passwordReset,
@@ -106,6 +108,12 @@ export default async function DashboardPage({
         <p className="rounded-lg border border-accent/30 bg-accent/10 px-3.5 py-2.5 text-sm text-accent">
           Your Direct Debit is set up — you&apos;re all sorted. Payments will
           show as collected once your bank confirms them.
+        </p>
+      )}
+      {fine === "setup" && (
+        <p className="rounded-lg border border-accent/30 bg-accent/10 px-3.5 py-2.5 text-sm text-accent">
+          Your fine payment is set up — it&apos;ll show as collected once your
+          bank confirms it.
         </p>
       )}
       {removalRequested && (

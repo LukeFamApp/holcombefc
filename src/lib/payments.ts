@@ -1,5 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { FineCardType } from "@/lib/config";
 import {
   getBillingRequest,
   createPayment,
@@ -32,12 +33,13 @@ export type FeePlanInfo = {
 export const COLLECTED_STATUSES = ["confirmed", "paid_out"];
 const COLLECTED = COLLECTED_STATUSES;
 // …and where it definitely isn't coming (anything else is in flight).
-const DEAD = [
+export const DEAD_STATUSES = [
   "failed",
   "cancelled",
   "customer_approval_denied",
   "charged_back",
 ];
+const DEAD = DEAD_STATUSES;
 
 export type Balance = {
   totalPence: number;
@@ -284,5 +286,99 @@ export async function fulfilPayment(
       gocardless_payment_id: oddPaymentId,
     })
     .eq("id", payment.id);
+  return "processing";
+}
+
+// ---------------------------------------------------------------------------
+// Fines — a one-off flat amount, no instalments, no fee plan, no sibling
+// discount. Same GoCardless mechanism as club fees, kept separate since
+// there's no ledger/balance-tracking complexity to share.
+// ---------------------------------------------------------------------------
+
+export type FineRow = {
+  id: string;
+  player_id: string;
+  card_type: FineCardType;
+  amount_pence: number;
+  status: string;
+  gocardless_billing_request_id: string | null;
+  gocardless_mandate_id: string | null;
+  gocardless_payment_id: string | null;
+};
+
+export async function createBillingRequestFlowForFine(options: {
+  fineId: string;
+  parent?: {
+    first_name?: string | null;
+    last_name?: string | null;
+    email?: string | null;
+  } | null;
+}): Promise<string> {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const billingRequest = await createMandateBillingRequest();
+
+  const admin = createAdminClient();
+  await admin
+    .from("fines")
+    .update({ gocardless_billing_request_id: billingRequest.id })
+    .eq("id", options.fineId);
+
+  const flow = await createBillingRequestFlow({
+    billingRequestId: billingRequest.id,
+    redirectUri: `${siteUrl}/fines/${options.fineId}/complete`,
+    exitUri: `${siteUrl}/fines?cancelled=1`,
+    prefilledCustomer: options.parent?.email
+      ? {
+          given_name: options.parent.first_name ?? undefined,
+          family_name: options.parent.last_name ?? undefined,
+          email: options.parent.email,
+        }
+      : undefined,
+  });
+  return flow.authorisation_url;
+}
+
+const CARD_LABEL: Record<FineCardType, string> = {
+  yellow: "Yellow card",
+  red: "Red card",
+};
+
+// Once the parent has authorised the mandate, create the single one-off
+// collection. Idempotent per attempt: safe to call from both the browser
+// redirect and the webhook.
+export async function fulfilFine(
+  fine: FineRow,
+): Promise<"processing" | "not_ready" | "already_done"> {
+  const isRetry = fine.status === "failed" || fine.status === "cancelled";
+  if (fine.gocardless_payment_id && !isRetry) {
+    return "already_done";
+  }
+  if (!fine.gocardless_billing_request_id) {
+    return "not_ready";
+  }
+
+  const br = await getBillingRequest(fine.gocardless_billing_request_id);
+  const mandateId = br.links.mandate_request_mandate;
+  if (br.status !== "fulfilled" || !mandateId) {
+    return "not_ready";
+  }
+
+  const admin = createAdminClient();
+  const gcPayment = await createPayment({
+    mandateId,
+    amountPence: fine.amount_pence,
+    description: `Holcombe FC — ${CARD_LABEL[fine.card_type]} fine`,
+    idempotencyKey: `hfc-fine-${fine.gocardless_billing_request_id}`,
+  });
+
+  await admin
+    .from("fines")
+    .update({
+      status: "processing",
+      gocardless_mandate_id: mandateId,
+      gocardless_payment_id: gcPayment.id,
+    })
+    .eq("id", fine.id);
+
   return "processing";
 }

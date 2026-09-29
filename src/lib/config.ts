@@ -10,3 +10,12 @@ export const SIBLING_DISCOUNT_RATE = 0.1;
 export function applySiblingDiscount(pence: number, eligible: boolean): number {
   return eligible ? Math.round(pence * (1 - SIBLING_DISCOUNT_RATE)) : pence;
 }
+
+// Disciplinary fines: flat one-off amounts, no sibling discount or fee plan
+// involved.
+export const FINE_AMOUNTS_PENCE = {
+  yellow: 1500,
+  red: 2500,
+} as const;
+
+export type FineCardType = keyof typeof FINE_AMOUNTS_PENCE;
