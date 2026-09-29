@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { GlassCard, StatusPill } from "@/components/ui";
 import { AdminTeamFilter } from "@/components/AdminTeamFilter";
 import { CURRENT_SEASON } from "@/lib/config";
-import { COLLECTED_STATUSES } from "@/lib/payments";
+import { COLLECTED_STATUSES, DEAD_STATUSES } from "@/lib/payments";
 
 type Team = { id: string; name: string; age_group: string };
 
@@ -48,18 +48,27 @@ type PaymentReportRow = {
 
 const pounds = (pence: number) => `£${(pence / 100).toFixed(2)}`;
 
-function summarize(rows: PaymentReportRow[], collected: Map<string, number>) {
+function summarize(
+  rows: PaymentReportRow[],
+  collected: Map<string, number>,
+  missedPaymentIds: Set<string>,
+) {
   let paid = 0;
   let processing = 0;
   let pending = 0;
-  let issues = 0; // failed or cancelled
+  let issues = 0; // failed, cancelled, or a monthly plan with a missed instalment
   let expectedPence = 0;
   let collectedPence = 0;
 
   for (const r of rows) {
     const payment = r.payments?.[0];
     const status = payment?.status ?? "not_required";
+    // A monthly plan stays "processing" after a single missed instalment
+    // (GoCardless can still retry) but that shouldn't stay invisible —
+    // count it as an issue rather than quietly as "on track".
+    const missedPayment = !!payment && missedPaymentIds.has(payment.id);
     if (status === "paid") paid++;
+    else if (status === "processing" && missedPayment) issues++;
     else if (status === "processing") processing++;
     else if (status === "pending") pending++;
     else if (status === "failed" || status === "cancelled") issues++;
@@ -147,7 +156,9 @@ export default async function AdminPaymentsPage({
   const allRows = registrations ?? [];
 
   const collected = new Map<string, number>();
+  const missedPaymentIds = new Set<string>();
   for (const c of collectionRows ?? []) {
+    if (DEAD_STATUSES.includes(c.status)) missedPaymentIds.add(c.payment_id);
     if (!COLLECTED_STATUSES.includes(c.status)) continue;
     collected.set(c.payment_id, (collected.get(c.payment_id) ?? 0) + c.amount_pence);
   }
@@ -156,7 +167,7 @@ export default async function AdminPaymentsPage({
     ? allRows.filter((r) => r.players?.teams?.id === activeTeamId)
     : allRows;
 
-  const overall = summarize(rows, collected);
+  const overall = summarize(rows, collected, missedPaymentIds);
 
   // Breakdown always covers every team (regardless of the pill filter above)
   // so it works as a comparison view, not just a mirror of the filtered list.
@@ -166,12 +177,13 @@ export default async function AdminPaymentsPage({
       stats: summarize(
         allRows.filter((r) => r.players?.teams?.id === t.id),
         collected,
+        missedPaymentIds,
       ),
     })),
   ];
   const noTeamRows = allRows.filter((r) => !r.players?.teams);
   if (noTeamRows.length > 0) {
-    byTeam.push({ team: null, stats: summarize(noTeamRows, collected) });
+    byTeam.push({ team: null, stats: summarize(noTeamRows, collected, missedPaymentIds) });
   }
 
   return (
@@ -203,7 +215,7 @@ export default async function AdminPaymentsPage({
         <StatTile
           label="Needs attention"
           value={String(overall.issues)}
-          sub={overall.issues > 0 ? "Failed or cancelled" : undefined}
+          sub={overall.issues > 0 ? "Failed, cancelled, or missed a payment" : undefined}
         />
         <StatTile
           label="Collected"
@@ -297,10 +309,13 @@ export default async function AdminPaymentsPage({
                 const collectedPence = payment
                   ? collected.get(payment.id) ?? 0
                   : 0;
+                const missedPayment =
+                  !!payment && missedPaymentIds.has(payment.id);
                 const needsChasing =
                   status === "pending" ||
                   status === "failed" ||
-                  status === "cancelled";
+                  status === "cancelled" ||
+                  (status === "processing" && missedPayment);
                 return (
                   <tr
                     key={r.id}
@@ -335,6 +350,11 @@ export default async function AdminPaymentsPage({
                           {payment.method === "monthly"
                             ? "Monthly DD"
                             : "Paid in full"}
+                        </div>
+                      )}
+                      {status === "processing" && missedPayment && (
+                        <div className="mt-1 text-xs text-red-300">
+                          ⚠ Missed a payment
                         </div>
                       )}
                     </td>
