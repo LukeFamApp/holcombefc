@@ -48,6 +48,37 @@ type PaymentReportRow = {
 
 const pounds = (pence: number) => `£${(pence / 100).toFixed(2)}`;
 
+// A pre-filled chase email, tailored to *why* it needs chasing: a plan
+// that never got set up (or whose mandate died) sends them back to /pay
+// to restart it; a plan that's live but just dropped an instalment sends
+// them to their payment history instead, since /pay would just bounce
+// them straight back to the dashboard for an already-"processing" plan.
+function buildChaseMailto(
+  r: PaymentReportRow,
+  opts: { expectedPence: number; collectedPence: number; missedPayment: boolean },
+) {
+  const parent = r.players?.parents;
+  const playerName = `${r.players?.first_name ?? ""} ${r.players?.last_name ?? ""}`.trim();
+  const outstandingPence = Math.max(opts.expectedPence - opts.collectedPence, 0);
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.holcombefc.club";
+
+  const subject = `Holcombe FC — ${playerName}'s club fees`;
+  const body = opts.missedPayment
+    ? `Hi ${parent?.first_name ?? "there"},\n\n` +
+      `A recent Direct Debit payment for ${playerName}'s club fees didn't go through. ` +
+      `The outstanding balance so far is ${pounds(outstandingPence)}.\n\n` +
+      `Could you check there are sufficient funds and your bank details are up to date? ` +
+      `You can see the payment history here: ${siteUrl}/payments/${r.id}\n\n` +
+      `Let us know if you need to update your bank details or have any questions.\n\nThanks,\nHolcombe FC`
+    : `Hi ${parent?.first_name ?? "there"},\n\n` +
+      `Just a reminder that ${playerName}'s club fees (${pounds(outstandingPence)}) ` +
+      `haven't been set up yet for this season.\n\n` +
+      `You can set up Direct Debit here: ${siteUrl}/pay/${r.id}\n\n` +
+      `Let us know if you have any questions.\n\nThanks,\nHolcombe FC`;
+
+  return `mailto:${parent?.email ?? ""}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
 function summarize(
   rows: PaymentReportRow[],
   collected: Map<string, number>,
@@ -368,9 +399,11 @@ export default async function AdminPaymentsPage({
                     <td className="px-4 py-3">
                       {needsChasing && r.players?.parents?.email && (
                         <a
-                          href={`mailto:${r.players.parents.email}?subject=${encodeURIComponent(
-                            `Holcombe FC — ${r.players.first_name} ${r.players.last_name}'s club fees`,
-                          )}`}
+                          href={buildChaseMailto(r, {
+                            expectedPence,
+                            collectedPence,
+                            missedPayment,
+                          })}
                           className="text-xs font-(family-name:--font-ui-mono) uppercase tracking-wide text-accent hover:underline"
                         >
                           Email
