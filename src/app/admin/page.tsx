@@ -15,6 +15,10 @@ type RegistrationRow = {
     first_name: string;
     last_name: string;
     date_of_birth: string;
+    address_line1: string;
+    address_line2: string | null;
+    address_town: string;
+    address_postcode: string;
     emergency_contact_name: string;
     emergency_contact_phone: string;
     medical_conditions: string | null;
@@ -66,7 +70,9 @@ export default async function AdminPage({
         .from("registrations")
         .select(
           `id, season, status, created_at,
-           players ( id, first_name, last_name, date_of_birth, emergency_contact_name, emergency_contact_phone,
+           players ( id, first_name, last_name, date_of_birth,
+                     address_line1, address_line2, address_town, address_postcode,
+                     emergency_contact_name, emergency_contact_phone,
                      medical_conditions, allergies, medications, heart_conditions, photo_consent,
                      teams ( id, name, age_group ), parents ( first_name, last_name, email, phone ) ),
            fee_plans ( name, annual_price_pence ),
@@ -171,12 +177,13 @@ export default async function AdminPage({
       )}
 
       <GlassCard className="overflow-x-auto">
-        <table className="w-full min-w-[1000px] text-sm">
+        <table className="w-full min-w-[1150px] text-sm">
           <thead>
             <tr className="text-left text-white/50 font-(family-name:--font-ui-mono) text-xs uppercase tracking-wide border-b border-white/10">
               <th className="px-4 py-3">Player</th>
               <th className="px-4 py-3">Team</th>
               <th className="px-4 py-3">Parent</th>
+              <th className="px-4 py-3">Address</th>
               <th className="px-4 py-3">Fee plan</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Payment</th>
@@ -234,6 +241,21 @@ export default async function AdminPage({
                       ? ` · ${r.players.parents.phone}`
                       : ""}
                   </div>
+                </td>
+                <td className="px-4 py-3 text-white/70 text-xs max-w-[200px]">
+                  {r.players ? (
+                    <>
+                      {r.players.address_line1}
+                      {r.players.address_line2
+                        ? `, ${r.players.address_line2}`
+                        : ""}
+                      <div className="text-white/50">
+                        {r.players.address_town} {r.players.address_postcode}
+                      </div>
+                    </>
+                  ) : (
+                    "—"
+                  )}
                 </td>
                 <td className="px-4 py-3 text-white/80">
                   {r.fee_plans ? (
@@ -299,7 +321,7 @@ export default async function AdminPage({
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-10 text-center text-white/40">
+                <td colSpan={9} className="px-4 py-10 text-center text-white/40">
                   No registrations yet.
                 </td>
               </tr>
