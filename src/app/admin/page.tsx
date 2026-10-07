@@ -4,6 +4,7 @@ import { CURRENT_SEASON } from "@/lib/config";
 import { movePlayerToTeam } from "@/lib/actions/teams";
 import { resolvePlayerRemoval } from "@/lib/actions/removals";
 import { AdminTeamFilter } from "@/components/AdminTeamFilter";
+import { FineFlags, type PlayerFine } from "@/components/FineFlags";
 
 type RegistrationRow = {
   id: string;
@@ -26,6 +27,7 @@ type RegistrationRow = {
     medications: string | null;
     heart_conditions: string | null;
     photo_consent: boolean;
+    fines: PlayerFine[] | null;
     teams: { id: string; name: string; age_group: string } | null;
     parents: {
       first_name: string;
@@ -74,6 +76,7 @@ export default async function AdminPage({
                      address_line1, address_line2, address_town, address_postcode,
                      emergency_contact_name, emergency_contact_phone,
                      medical_conditions, allergies, medications, heart_conditions, photo_consent,
+                     fines ( id, card_type, amount_pence, status ),
                      teams ( id, name, age_group ), parents ( first_name, last_name, email, phone ) ),
            fee_plans ( name, annual_price_pence ),
            payments ( status, method, amount_pence, sibling_discount_applied )`,
@@ -202,6 +205,7 @@ export default async function AdminPage({
                   <div className="text-xs text-white/40">
                     DOB {r.players?.date_of_birth}
                   </div>
+                  <FineFlags fines={r.players?.fines} />
                 </td>
                 <td className="px-4 py-3 text-white/80">
                   {r.players && (

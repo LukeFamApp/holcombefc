@@ -131,15 +131,22 @@ create table if not exists public.player_removal_requests (
 create index if not exists player_removal_requests_player_id_idx
   on public.player_removal_requests (player_id);
 
--- Disciplinary fines: parent self-reports a yellow/red card for their own
--- child and pays it as a one-off Direct Debit, same GoCardless mechanism as
+-- Disciplinary fines: an admin issues a yellow/red card against a player
+-- (this is what flags it to the team's coaches), and the parent pays that
+-- outstanding fine as a one-off Direct Debit, same GoCardless mechanism as
 -- club fees. Not tied to a registration/season — just the player.
+--   pending    = issued, parent hasn't set up payment yet
+--   processing = Direct Debit authorised, collection in flight
+--   paid       = confirmed collected (this is what clears the flag)
+--   failed / cancelled = payment attempt died; parent can retry
+--   withdrawn  = admin removed it (issued in error)
 create table if not exists public.fines (
   id                             uuid primary key default gen_random_uuid(),
   player_id                      uuid not null references public.players(id) on delete cascade,
   card_type                      text not null check (card_type in ('yellow', 'red')),
   amount_pence                   integer not null,
-  status                         text not null default 'pending' check (status in ('pending', 'processing', 'paid', 'failed', 'cancelled')),
+  status                         text not null default 'pending' check (status in ('pending', 'processing', 'paid', 'failed', 'cancelled', 'withdrawn')),
+  issued_by                      uuid references public.parents(id) on delete set null,
   gocardless_mandate_id          text,
   gocardless_billing_request_id  text,
   gocardless_payment_id          text,
@@ -147,6 +154,18 @@ create table if not exists public.fines (
 );
 
 create index if not exists fines_player_id_idx on public.fines (player_id);
+
+-- Coaches: a user assigned to a team. Coaches get the read-only /coach page
+-- (served via scoped server-side queries, not loosened RLS on players etc.).
+create table if not exists public.team_coaches (
+  id         uuid primary key default gen_random_uuid(),
+  team_id    uuid not null references public.teams(id) on delete cascade,
+  parent_id  uuid not null references public.parents(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (team_id, parent_id)
+);
+
+create index if not exists team_coaches_parent_id_idx on public.team_coaches (parent_id);
 
 -- ---------------------------------------------------------------------------
 -- Auto-create a parent row whenever someone signs up via Supabase Auth
@@ -335,8 +354,9 @@ drop policy if exists "payments_admin_manage" on public.payments;
 create policy "payments_admin_manage" on public.payments
   for all using (public.is_admin()) with check (public.is_admin());
 
--- fines: a parent can view/create fines for their own players; only admins
--- (or the service role, e.g. the GoCardless webhook) can change status
+-- fines: a parent can view fines against their own players; only admins
+-- issue/withdraw them, and only the service role (GoCardless flow/webhook)
+-- moves the payment status along
 drop policy if exists "fines_select_own_or_admin" on public.fines;
 create policy "fines_select_own_or_admin" on public.fines
   for select using (
@@ -348,16 +368,20 @@ create policy "fines_select_own_or_admin" on public.fines
   );
 
 drop policy if exists "fines_insert_own" on public.fines;
-create policy "fines_insert_own" on public.fines
-  for insert with check (
-    exists (
-      select 1 from public.players p
-      where p.id = fines.player_id and p.parent_id = auth.uid()
-    )
-  );
 
 drop policy if exists "fines_admin_manage" on public.fines;
 create policy "fines_admin_manage" on public.fines
+  for all using (public.is_admin()) with check (public.is_admin());
+
+-- team_coaches: a coach can see their own assignments; only admins assign
+alter table public.team_coaches enable row level security;
+
+drop policy if exists "team_coaches_select_own_or_admin" on public.team_coaches;
+create policy "team_coaches_select_own_or_admin" on public.team_coaches
+  for select using (parent_id = auth.uid() or public.is_admin());
+
+drop policy if exists "team_coaches_admin_manage" on public.team_coaches;
+create policy "team_coaches_admin_manage" on public.team_coaches
   for all using (public.is_admin()) with check (public.is_admin());
 
 -- payment_collections: parents read their own; only the service role writes

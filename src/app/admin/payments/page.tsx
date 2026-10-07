@@ -6,20 +6,6 @@ import { COLLECTED_STATUSES, DEAD_STATUSES } from "@/lib/payments";
 
 type Team = { id: string; name: string; age_group: string };
 
-type FineRow = {
-  id: string;
-  card_type: "yellow" | "red";
-  amount_pence: number;
-  status: string;
-  created_at: string;
-  players: {
-    first_name: string;
-    last_name: string;
-    teams: Team | null;
-    parents: { first_name: string; last_name: string; email: string } | null;
-  } | null;
-};
-
 type PaymentReportRow = {
   id: string;
   status: string;
@@ -150,12 +136,8 @@ export default async function AdminPaymentsPage({
   const { team: activeTeamId } = await searchParams;
   const supabase = await createClient();
 
-  const [
-    { data: registrations },
-    { data: allTeams },
-    { data: collectionRows },
-    { data: fines },
-  ] = await Promise.all([
+  const [{ data: registrations }, { data: allTeams }, { data: collectionRows }] =
+    await Promise.all([
       supabase
         .from("registrations")
         .select(
@@ -171,16 +153,6 @@ export default async function AdminPaymentsPage({
         .returns<PaymentReportRow[]>(),
       supabase.from("teams").select("id, name, age_group").order("age_group"),
       supabase.from("payment_collections").select("payment_id, amount_pence, status"),
-      supabase
-        .from("fines")
-        .select(
-          `id, card_type, amount_pence, status, created_at,
-           players ( first_name, last_name,
-                     teams ( id, name, age_group ),
-                     parents ( first_name, last_name, email ) )`,
-        )
-        .order("created_at", { ascending: false })
-        .returns<FineRow[]>(),
     ]);
 
   const teams = allTeams ?? [];
@@ -417,74 +389,6 @@ export default async function AdminPaymentsPage({
                 <tr>
                   <td colSpan={7} className="px-4 py-10 text-center text-white/40">
                     No registrations for this filter.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </GlassCard>
-      </section>
-
-      {/* Fines */}
-      <section>
-        <h2 className="font-(family-name:--font-ui-mono) text-xs uppercase tracking-[0.2em] text-white/40 mb-3">
-          Fines
-        </h2>
-        <GlassCard className="overflow-x-auto">
-          <table className="w-full min-w-[800px] text-sm">
-            <thead>
-              <tr className="text-left text-white/50 font-(family-name:--font-ui-mono) text-xs uppercase tracking-wide border-b border-white/10">
-                <th className="px-4 py-3">Player</th>
-                <th className="px-4 py-3">Team</th>
-                <th className="px-4 py-3">Parent</th>
-                <th className="px-4 py-3">Card</th>
-                <th className="px-4 py-3">Amount</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(fines ?? []).map((f) => (
-                <tr
-                  key={f.id}
-                  className="border-b border-white/5 last:border-0 hover:bg-white/[0.03]"
-                >
-                  <td className="px-4 py-3 text-white">
-                    {f.players?.first_name} {f.players?.last_name}
-                  </td>
-                  <td className="px-4 py-3 text-white/80">
-                    {f.players?.teams
-                      ? `${f.players.teams.name} (${f.players.teams.age_group})`
-                      : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-white/80">
-                    {f.players?.parents?.first_name} {f.players?.parents?.last_name}
-                    <div className="text-xs text-white/40">
-                      {f.players?.parents?.email}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={
-                        f.card_type === "yellow" ? "text-accent" : "text-red-300"
-                      }
-                    >
-                      {f.card_type === "yellow" ? "Yellow" : "Red"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-white/80">{pounds(f.amount_pence)}</td>
-                  <td className="px-4 py-3">
-                    <StatusPill status={f.status} kind="payment" />
-                  </td>
-                  <td className="px-4 py-3 text-white/50">
-                    {new Date(f.created_at).toLocaleDateString("en-GB")}
-                  </td>
-                </tr>
-              ))}
-              {(fines ?? []).length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-white/40">
-                    No fines recorded.
                   </td>
                 </tr>
               )}

@@ -349,6 +349,11 @@ const CARD_LABEL: Record<FineCardType, string> = {
 export async function fulfilFine(
   fine: FineRow,
 ): Promise<"processing" | "not_ready" | "already_done"> {
+  // A withdrawn fine must never be collected, even if the parent finishes a
+  // GoCardless flow they started before it was withdrawn.
+  if (fine.status === "withdrawn" || fine.status === "paid") {
+    return "already_done";
+  }
   const isRetry = fine.status === "failed" || fine.status === "cancelled";
   if (fine.gocardless_payment_id && !isRetry) {
     return "already_done";

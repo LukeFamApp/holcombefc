@@ -1,11 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
-import { GlassCard, Field, Button } from "@/components/ui";
+import { GlassCard, Field, Button, SelectField } from "@/components/ui";
 import {
   addTeam,
   updateTeam,
   deleteTeam,
   addFeePlan,
   deleteFeePlan,
+  addCoach,
+  removeCoach,
 } from "@/lib/actions/teams";
 
 type FeePlan = {
@@ -15,22 +17,41 @@ type FeePlan = {
   instalment_count: number | null;
 };
 
+type Coach = {
+  id: string;
+  parents: { first_name: string; last_name: string; email: string } | null;
+};
+
 type Team = {
   id: string;
   name: string;
   age_group: string;
   fee_plans: FeePlan[] | null;
+  team_coaches: Coach[] | null;
 };
 
 export default async function AdminTeamsPage() {
   const supabase = await createClient();
-  const { data: teams } = await supabase
-    .from("teams")
-    .select(
-      "id, name, age_group, fee_plans ( id, name, annual_price_pence, instalment_count )",
-    )
-    .order("age_group")
-    .returns<Team[]>();
+  const [{ data: teams }, { data: allParents }] = await Promise.all([
+    supabase
+      .from("teams")
+      .select(
+        `id, name, age_group,
+         fee_plans ( id, name, annual_price_pence, instalment_count ),
+         team_coaches ( id, parents ( first_name, last_name, email ) )`,
+      )
+      .order("age_group")
+      .returns<Team[]>(),
+    supabase
+      .from("parents")
+      .select("id, first_name, last_name, email")
+      .order("first_name"),
+  ]);
+
+  const parentOptions = (allParents ?? []).map((p) => ({
+    value: p.id,
+    label: `${p.first_name} ${p.last_name} — ${p.email}`,
+  }));
 
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 sm:py-12 flex flex-col gap-10">
@@ -150,6 +171,57 @@ export default async function AdminTeamsPage() {
                 Add fee plan
               </Button>
             </form>
+
+            {/* Coaches */}
+            <div className="mt-6 border-t border-white/10 pt-5">
+              <p className="font-(family-name:--font-ui-mono) text-xs uppercase tracking-[0.2em] text-white/40 mb-2">
+                Coaches
+              </p>
+              <ul className="flex flex-col gap-2">
+                {(team.team_coaches ?? []).map((c) => (
+                  <li
+                    key={c.id}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/20 px-3.5 py-2.5 text-sm"
+                  >
+                    <span className="text-white">
+                      {c.parents?.first_name} {c.parents?.last_name}{" "}
+                      <span className="text-white/40">· {c.parents?.email}</span>
+                    </span>
+                    <form action={removeCoach}>
+                      <input type="hidden" name="id" value={c.id} />
+                      <button
+                        type="submit"
+                        className="text-xs text-red-300/80 hover:text-red-300 transition-colors"
+                      >
+                        Remove
+                      </button>
+                    </form>
+                  </li>
+                ))}
+                {(team.team_coaches ?? []).length === 0 && (
+                  <li className="text-sm text-white/40">
+                    No coach assigned yet.
+                  </li>
+                )}
+              </ul>
+              <form
+                action={addCoach}
+                className="mt-3 flex flex-wrap items-end gap-3"
+              >
+                <input type="hidden" name="teamId" value={team.id} />
+                <div className="flex-1 min-w-[220px]">
+                  <SelectField
+                    label="Add a coach"
+                    name="parentId"
+                    required
+                    options={parentOptions}
+                  />
+                </div>
+                <Button variant="ghost" className="mb-0.5">
+                  Assign
+                </Button>
+              </form>
+            </div>
           </GlassCard>
         ))}
 

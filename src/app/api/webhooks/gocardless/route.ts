@@ -119,7 +119,7 @@ export async function POST(request: Request) {
           .eq("gocardless_payment_id", gcPayment.id)
           .maybeSingle<FineRow>();
 
-        if (fineRow && fineRow.status !== "paid") {
+        if (fineRow && fineRow.status !== "paid" && fineRow.status !== "withdrawn") {
           if (COLLECTED_STATUSES.includes(gcPayment.status)) {
             await admin.from("fines").update({ status: "paid" }).eq("id", fineRow.id);
           } else if (DEAD_STATUSES.includes(gcPayment.status)) {
@@ -163,7 +163,7 @@ export async function POST(request: Request) {
             .from("fines")
             .update({ status: "cancelled" })
             .eq("gocardless_mandate_id", event.links.mandate)
-            .not("status", "in", '("paid")');
+            .not("status", "in", '("paid","withdrawn")');
         }
       }
 

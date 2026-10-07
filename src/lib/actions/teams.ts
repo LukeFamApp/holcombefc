@@ -74,6 +74,32 @@ export async function addFeePlan(formData: FormData) {
   revalidatePath("/admin/teams");
 }
 
+export async function addCoach(formData: FormData) {
+  const supabase = await requireAdmin();
+
+  const teamId = String(formData.get("teamId") ?? "");
+  const parentId = String(formData.get("parentId") ?? "");
+  if (!teamId || !parentId) return;
+
+  // unique (team_id, parent_id): re-adding the same coach is a harmless no-op
+  await supabase
+    .from("team_coaches")
+    .upsert(
+      { team_id: teamId, parent_id: parentId },
+      { onConflict: "team_id,parent_id", ignoreDuplicates: true },
+    );
+  revalidatePath("/admin/teams");
+}
+
+export async function removeCoach(formData: FormData) {
+  const supabase = await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+  if (!id) return;
+
+  await supabase.from("team_coaches").delete().eq("id", id);
+  revalidatePath("/admin/teams");
+}
+
 export async function deleteFeePlan(formData: FormData) {
   const supabase = await requireAdmin();
   const id = String(formData.get("id") ?? "");

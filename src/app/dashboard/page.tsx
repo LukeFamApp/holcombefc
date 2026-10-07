@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { GlassCard, StatusPill } from "@/components/ui";
 import { requestPlayerRemoval } from "@/lib/actions/players";
-import { CURRENT_SEASON } from "@/lib/config";
+import { CURRENT_SEASON, FINE_UNPAID_STATUSES } from "@/lib/config";
 
 type RegistrationRow = {
   id: string;
@@ -22,6 +22,8 @@ type RegistrationRow = {
 
 type RemovalRequestRow = { status: string };
 
+type FineSummaryRow = { card_type: string; amount_pence: number; status: string };
+
 type PlayerRow = {
   id: string;
   first_name: string;
@@ -31,6 +33,7 @@ type PlayerRow = {
   teams: { name: string; age_group: string } | null;
   registrations: RegistrationRow[] | null;
   player_removal_requests: RemovalRequestRow[] | null;
+  fines: FineSummaryRow[] | null;
 };
 
 export default async function DashboardPage({
@@ -73,7 +76,8 @@ export default async function DashboardPage({
         `id, first_name, last_name, date_of_birth, photo_consent,
          teams ( name, age_group ),
          registrations ( id, season, status, fee_plans ( name, annual_price_pence ), payments ( status, method, amount_pence, sibling_discount_applied ) ),
-         player_removal_requests ( status )`,
+         player_removal_requests ( status ),
+         fines ( card_type, amount_pence, status )`,
       )
       // Explicit filter, not just RLS: an admin's OWN dashboard must still
       // show only their own children, not every family's — RLS alone would
@@ -209,6 +213,22 @@ export default async function DashboardPage({
                   {reg && <StatusPill status={reg.status} />}
                   <StatusPill status={paymentStatus} kind="payment" />
                 </div>
+                {(p.fines ?? [])
+                  .filter((f) => FINE_UNPAID_STATUSES.includes(f.status))
+                  .map((f, i) => (
+                    <Link
+                      key={i}
+                      href="/fines"
+                      className={`mt-3 block rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
+                        f.card_type === "yellow"
+                          ? "border-accent/40 bg-accent/10 text-accent hover:bg-accent/20"
+                          : "border-red-500/40 bg-red-500/10 text-red-300 hover:bg-red-500/20"
+                      }`}
+                    >
+                      {f.card_type === "yellow" ? "Yellow" : "Red"} card fine · £
+                      {(f.amount_pence / 100).toFixed(0)} to pay →
+                    </Link>
+                  ))}
                 {reg &&
                   ["pending", "failed", "cancelled"].includes(paymentStatus) && (
                     <Link

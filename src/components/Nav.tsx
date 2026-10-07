@@ -10,18 +10,22 @@ export default async function Nav() {
   } = await supabase.auth.getUser();
 
   let isAdmin = false;
+  let isCoach = false;
   if (user) {
-    const { data: parent } = await supabase
-      .from("parents")
-      .select("is_admin")
-      .eq("id", user.id)
-      .single();
+    const [{ data: parent }, { count: coachCount }] = await Promise.all([
+      supabase.from("parents").select("is_admin").eq("id", user.id).single(),
+      supabase
+        .from("team_coaches")
+        .select("id", { count: "exact", head: true })
+        .eq("parent_id", user.id),
+    ]);
     isAdmin = parent?.is_admin ?? false;
+    isCoach = (coachCount ?? 0) > 0;
   }
 
   return (
     <header className="sticky top-0 z-50 glass border-x-0 border-t-0">
-      <nav className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
+      <nav className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-y-2 px-4 py-3 sm:px-6 sm:py-4">
         <Link href="/" className="flex items-center gap-2.5">
           <Image
             src="/badge.png"
@@ -35,7 +39,7 @@ export default async function Nav() {
             HOLCOMBE <span className="text-accent">FC</span>
           </span>
         </Link>
-        <div className="flex items-center gap-2 font-(family-name:--font-ui-mono) text-sm">
+        <div className="flex flex-wrap items-center gap-1 sm:gap-2 font-(family-name:--font-ui-mono) text-sm">
           {user ? (
             <>
               <Link
@@ -44,6 +48,14 @@ export default async function Nav() {
               >
                 Dashboard
               </Link>
+              {isCoach && (
+                <Link
+                  href="/coach"
+                  className="rounded-lg px-3 py-1.5 text-accent hover:bg-white/10 transition-colors"
+                >
+                  My Team
+                </Link>
+              )}
               <Link
                 href="/contacts"
                 className="rounded-lg px-3 py-1.5 text-white/80 hover:bg-white/10 hover:text-white transition-colors"

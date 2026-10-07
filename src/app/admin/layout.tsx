@@ -30,6 +30,12 @@ export default async function AdminLayout({
           >
             Payments
           </Link>
+          <Link
+            href="/admin/fines"
+            className="px-4 py-3 text-white/70 hover:text-white transition-colors"
+          >
+            Fines
+          </Link>
         </nav>
       </div>
       {children}
